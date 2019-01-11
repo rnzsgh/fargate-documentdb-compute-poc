@@ -515,7 +515,7 @@ Resources:
   FargateTaskDefinitionWorker:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Ref AWS::StackName
+      Family: !Sub ${AWS::StackName}-worker
       RequiresCompatibilities:
         - FARGATE
       Cpu: !Ref ContainerCpuWorker
