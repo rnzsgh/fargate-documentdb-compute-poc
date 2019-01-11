@@ -497,6 +497,8 @@ Resources:
               Value: !Ref DatabasePassword
             - Name: TASK_DEFINITION_ARN
               Value: !Ref FargateTaskDefinitionWorker
+            - Name: TASK_DEFINITION_FAMILY
+              Value: !Sub ${AWS::StackName}-worker
             - Name: SUBNET_0
               Value: !Ref SubnetId0
             - Name: SUBNET_1
