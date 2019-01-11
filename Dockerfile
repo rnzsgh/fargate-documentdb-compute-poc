@@ -1,6 +1,8 @@
 # This is a multi-stage build. First we are going to compile and then
 # create a small image for runtime.
-FROM golang:1.11.1 as builder
+FROM golang:1.11.4 as builder
+
+ENV GO111MODULE on
 
 RUN mkdir -p /go/src/github.com/fargate-documentdb-compute-poc
 WORKDIR /go/src/github.com/fargate-documentdb-compute-poc
