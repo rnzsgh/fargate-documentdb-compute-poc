@@ -1,0 +1,754 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Fargate Compute Example with DocumentDB
+
+Parameters:
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC id
+
+  SubnetId0:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet id 0
+
+  SubnetId1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet id 1
+
+  SeedDockerImage:
+    Type: String
+    Default: registry.hub.docker.com/library/nginx:1.15
+    Description: Initial image before CodePipeline is executed. Existing application images in ECR should override this parameter
+
+  GitSourceRepo:
+    Type: String
+    Description: GitHub source repository - must contain a Dockerfile in the base
+
+  GitSourceRepoWorker:
+    Type: String
+    Description: GitHub source repository for worker - must contain a Dockerfile in the base
+
+  GitBranch:
+    Type: String
+    Default: master
+    Description: GitHub git repository branch - change triggers a new build
+
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub API token - https://github.com/blog/1509-personal-api-tokens
+
+  GitHubUser:
+    Type: String
+    Description: GitHub username or organization
+
+  CodeBuildDockerImage:
+    Type: String
+    Default: aws/codebuild/docker:18.09.0
+
+  ContainerCpu:
+    Type: Number
+    Description: "Amount of CPU for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Default: 512
+    MinValue: 256
+    MaxValue: 4096
+    ConstraintDescription: "Value must be between 256 and 4096"
+
+  ContainerMemory:
+    Type: Number
+    Description: "Amount of memory for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Default: 1024
+    MinValue: 512
+    MaxValue: 30720
+    ConstraintDescription: "Value must be between 512 and 30720"
+
+  ContainerCpuWorker:
+    Type: Number
+    Description: "Amount of CPU for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Default: 1024
+    MinValue: 256
+    MaxValue: 4096
+    ConstraintDescription: "Value must be between 256 and 4096"
+
+  ContainerMemoryWorker:
+    Type: Number
+    Description: "Amount of memory for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Default: 2048
+    MinValue: 512
+    MaxValue: 30720
+    ConstraintDescription: "Value must be between 512 and 30720"
+
+  DatabaseUser:
+    Default: root
+    Type: String
+    Description: Database admin account name
+    MinLength: 4
+    MaxLength: 16
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: Name must begin with a letter and contain only alphanumeric characters
+
+  DatabasePassword:
+    NoEcho: true
+    Type: String
+    Description: Database admin account password
+    MinLength: 6
+    MaxLength: 41
+    AllowedPattern: "[a-zA-Z0-9]*"
+    ConstraintDescription: Password must contain only alphanumeric characters
+
+  DatabaseInstanceClass:
+    Default: db.r4.large
+    Type: String
+    Description: "Database instance class"
+    ConstraintDescription: DB instance class not supported
+    AllowedValues:
+      - db.r4.large
+      - db.r4.xlarge
+      - db.r4.2xlarge
+      - db.r4.4xlarge
+      - db.r4.8xlarge
+      - db.r4.16xlarge
+
+
+Resources:
+
+  CodePipelineArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  CodePipelineWorkerArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  EcrDockerRepository:
+    Type: AWS::ECR::Repository
+
+  EcrDockerRepositoryWorker:
+    Type: AWS::ECR::Repository
+
+  FargateEcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+
+  CodeBuildProjectWorker:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub
+          - |
+            ---
+            version: 0.2
+            phases:
+              install:
+                commands:
+                  - apt-get update && apt-get -y install python-pip && pip install --upgrade python && pip install --upgrade awscli
+              pre_build:
+                  commands:
+                  - TAG="latest"
+                  - $(aws ecr get-login --no-include-email)
+              build:
+                commands:
+                  - docker build --tag $REPOSITORY_URI:$TAG .
+              post_build:
+                commands:
+                  - docker push $REPOSITORY_URI:$TAG
+                  - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
+            artifacts:
+              files: build.json
+          - ServiceName: !Ref GitSourceRepo
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Type: LINUX_CONTAINER
+        Image: !Ref CodeBuildDockerImage
+        EnvironmentVariables:
+          - Name: REPOSITORY_URI
+            Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepositoryWorker}
+      Name: !Sub ${AWS::StackName}-worker
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub
+          - |
+            ---
+            version: 0.2
+            phases:
+              install:
+                commands:
+                  - apt-get update && apt-get -y install python-pip && pip install --upgrade python && pip install --upgrade awscli
+              pre_build:
+                  commands:
+                  - TAG="$(date +%Y-%m-%d.%H.%M.%S).$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
+                  - $(aws ecr get-login --no-include-email)
+              build:
+                commands:
+                  - docker build --tag $REPOSITORY_URI:$TAG .
+              post_build:
+                commands:
+                  - docker push $REPOSITORY_URI:$TAG
+                  - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
+            artifacts:
+              files: build.json
+          - ServiceName: !Ref GitSourceRepo
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Type: LINUX_CONTAINER
+        Image: !Ref CodeBuildDockerImage
+        EnvironmentVariables:
+          - Name: REPOSITORY_URI
+            Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepository}
+      Name: !Ref AWS::StackName
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - ecr:GetAuthorizationToken
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:CreateNetworkInterfacePermission
+              - Resource: !Sub arn:aws:s3:::${CodePipelineArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+              - Resource: !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+              - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepository}
+                Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+              - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepositoryWorker}
+                Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codepipeline-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - ecs:List*
+                  - ecs:Describe*
+                  - ecs:RegisterTaskDefinition
+                  - ecs:UpdateService
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:UploadArchive
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:CancelUploadArchive
+                  - iam:PassRole
+              - Resource: !Sub arn:aws:s3:::${CodePipelineArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+              - Resource: !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+
+  CodePipelineGitHub:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: App
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref GitHubUser
+                Repo: !Ref GitSourceRepo
+                Branch: !Ref GitBranch
+                OAuthToken: !Ref GitHubToken
+              OutputArtifacts:
+                - Name: App
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: App
+              OutputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              Configuration:
+                ClusterName: !Ref FargateEcsCluster
+                ServiceName: !GetAtt FargateService.Name
+                FileName: build.json
+              InputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+    DependsOn:
+      - CodePipelineArtifactBucket
+      - CodeBuildProject
+      - CodePipelineServiceRole
+      - FargateService
+
+  CodePipelineWorkerGitHub:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineWorkerArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: App
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref GitHubUser
+                Repo: !Ref GitSourceRepoWorker
+                Branch: !Ref GitBranch
+                OAuthToken: !Ref GitHubToken
+              OutputArtifacts:
+                - Name: App
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildProjectWorker
+              InputArtifacts:
+                - Name: App
+              OutputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+    DependsOn:
+      - CodePipelineWorkerArtifactBucket
+      - CodeBuildProjectWorker
+      - CodePipelineServiceRole
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /fargate/${AWS::StackName}/compute-manager
+
+  LogGroupWorker:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /fargate/${AWS::StackName}/compute-worker
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: run-tasks
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:StartTask
+                Resource: !Ref FargateTaskDefinitionWorker
+
+  TaskRoleWorker:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  FargateTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: !Ref GitSourceRepo
+          Image: !Ref SeedDockerImage
+          Environment:
+            - Name: DOCUMENT_DB_ENDPOINT
+              Value: !GetAtt DocumentDbCluster.Endpoint
+            - Name: DOCUMENT_DB_PORT
+              Value: !GetAtt DocumentDbCluster.Port
+            - Name: DOCUMENT_DB_USER
+              Value: !Ref DatabaseUser
+            - Name: DOCUMENT_DB_PASSWORD # This is bad - waiting for secrets support
+              Value: !Ref DatabasePassword
+            - Name: TASK_DEFINITION_ARN
+              Value: !Ref FargateTaskDefinitionWorker
+            - Name: SUBNET_0
+              Value: !Ref SubnetId0
+            - Name: SUBNET_1
+              Value: !Ref SubnetId1
+            - Name: APP_SECURITY_GROUP_ID
+              Value: !Ref AppSecurityGroup
+            - Name: CLUSTER_NAME
+              Value: !Ref FargateEcsCluster
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: !Ref GitSourceRepo
+
+  FargateTaskDefinitionWorker:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: !Ref ContainerCpuWorker
+      Memory: !Ref ContainerMemoryWorker
+      NetworkMode: awsvpc
+      TaskRoleArn: !GetAtt TaskRoleWorker.Arn
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: !Ref GitSourceRepoWorker
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepositoryWorker}:latest
+          Environment:
+            - Name: DOCUMENT_DB_ENDPOINT
+              Value: !GetAtt DocumentDbCluster.Endpoint
+            - Name: DOCUMENT_DB_PORT
+              Value: !GetAtt DocumentDbCluster.Port
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: !Ref GitSourceRepo
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  FargateService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref FargateEcsCluster
+      ServiceName: !Ref AWS::StackName
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition: !Ref FargateTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref AppSecurityGroup
+          Subnets:
+            - !Ref SubnetId0
+            - !Ref SubnetId1
+
+  DocumentDbCluster:
+    Type: AWS::DocDB::DBCluster
+    Properties:
+      MasterUsername: !Ref DatabaseUser
+      MasterUserPassword: !Ref DatabasePassword
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !Ref DbSecurityGroup
+    DependsOn: DatabaseSubnetGroup
+
+  DocumentDbInstance0:
+    Type: AWS::DocDB::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DocumentDbCluster
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-0
+
+  DocumentDbInstance1:
+    Type: AWS::DocDB::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DocumentDbCluster
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-1
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access to the DocumentDB
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp
+        ToPort: 27017
+        FromPort: 27017
+      SecurityGroupIngress:
+        SourceSecurityGroupId: !Ref AppSecurityGroup
+        IpProtocol: tcp
+        ToPort: 27017
+        FromPort: 27017
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-DbSecurityGroup
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App security group
+      VpcId: !Ref VpcId
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-AppSecurityGroup
+
+  DatabaseSubnetGroup:
+    Type: AWS::DocDB::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Database subnet group
+      SubnetIds:
+      - !Ref SubnetId0
+      - !Ref SubnetId1
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+
+
+Outputs:
+
+  Name:
+    Description: Stack Name
+    Value: !Ref AWS::StackName
+    Export:
+      Name: !Sub ${AWS::StackName}-Name
+
+  DatabaseSubnetGroupName:
+    Description: Db subnet group name
+    Value: !Ref DatabaseSubnetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSubnetGroupName
+
+  DocumentDbClusterName:
+    Description: Db cluster name
+    Value: !Ref DocumentDbCluster
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentDbClusterName
+
+  DocumentDbClusterResourceId:
+    Description: Db cluster resource id
+    Value: !GetAtt DocumentDbCluster.ClusterResourceId
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentDbClusterResourceId
+
+  DocumentDbClusterEndpoint:
+    Description: Db cluster endpoint
+    Value: !GetAtt DocumentDbCluster.Endpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentDbClusterEndpoint
+
+  DocumentDbClusterReadEndpoint:
+    Description: Db cluster read endpoint
+    Value: !GetAtt DocumentDbCluster.ReadEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentDbClusterReadEndpoint
+
+  DocumentDbClusterPort:
+    Description: Db cluster port
+    Value: !GetAtt DocumentDbCluster.Port
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentDbClusterPort
+
+  EcrDockerRepositoryName:
+    Value: !Ref EcrDockerRepository
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrDockerRepositoryName
+
+  EcrDockerRepositoryWorkerName:
+    Value: !Ref EcrDockerRepositoryWorker
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrDockerRepositoryWorkerName
+
+  EcrDockerRepositoryArn:
+    Value: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepository}
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrDockerRepositoryArn
+
+  EcrDockerRepositoryWorkerArn:
+    Value: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepositoryWorker}
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrDockerRepositoryWorkerArn
+
+  EcrDockerRepositoryUri:
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepository}
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrDockerRepositoryUri
+
+  EcrDockerRepositoryWorkerUri:
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepositoryWorker}
+    Export:
+      Name: !Sub ${AWS::StackName}-EcrDockerRepositoryWorkerUri
+
+  FargateEcsClusterName:
+    Value: !Ref FargateEcsCluster
+    Export:
+      Name: !Sub ${AWS::StackName}-FargateEcsClusterName
+
+  FargateEcsClusterArn:
+    Value: !GetAtt FargateEcsCluster.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-FargateEcsClusterArn
+
+  FargateServiceArn:
+    Value: !Ref FargateService
+    Export:
+      Name: !Sub ${AWS::StackName}-FargateServiceArn
+
+  FargateServiceName:
+    Value: !GetAtt FargateService.Name
+    Export:
+      Name: !Sub ${AWS::StackName}-FargateServiceName
+
+  CodePipelineArtifactBucketName:
+    Value: !Ref CodePipelineArtifactBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-CodePipelineArtifactBucket
+
+  CodePipelineWorkerArtifactBucketName:
+    Value: !Ref CodePipelineWorkerArtifactBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-CodePipelineWorkerArtifactBucket
+
+  CodePipelineArtifactBucketArn:
+    Value: !GetAtt CodePipelineArtifactBucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CodePipelineArtifactBucketArn
+
+  CodePipelineWorkerArtifactBucketArn:
+    Value: !GetAtt CodePipelineWorkerArtifactBucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CodePipelineWorkerArtifactBucketArn
+
