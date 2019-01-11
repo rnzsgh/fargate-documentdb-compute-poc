@@ -46,7 +46,7 @@ Parameters:
 
   CodeBuildDockerImage:
     Type: String
-    Default: aws/codebuild/docker:18.09.0
+    Default: aws/codebuild/docker:17.09.0
 
   ContainerCpu:
     Type: Number
