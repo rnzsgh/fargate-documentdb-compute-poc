@@ -586,6 +586,9 @@ Resources:
       StorageEncrypted: true
       VpcSecurityGroupIds:
         - !Ref DbSecurityGroup
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}
     DependsOn: DatabaseSubnetGroup
 
   DocumentDbInstance0:
