@@ -78,11 +78,12 @@ func main() {
 	log.Info("This is a test")
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		log.Info("health")
+		log.Info("/health")
 		io.WriteString(w, "ok")
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Info("/")
 
 		res := &response{Message: "Hello World"}
 
@@ -97,7 +98,8 @@ func main() {
 		io.WriteString(w, string(out))
 
 	})
-	http.ListenAndServe(":80", nil)
+	log.Info("ready to serve")
+	http.ListenAndServe(":8080", nil)
 
 	log.Flush()
 }

@@ -111,6 +111,30 @@ Parameters:
       - db.r4.8xlarge
       - db.r4.16xlarge
 
+  AlbIngressPort:
+    Description: The ALB ingress port used by security groups
+    Type: Number
+    MinValue: 0
+    MaxValue: 65535
+    ConstraintDescription: TCP ports must be between 0 - 65535
+    Default: 80
+
+  AppIngressPort:
+    Description: The application ingress port used by security groups
+    Type: Number
+    MinValue: 0
+    MaxValue: 65535
+    ConstraintDescription: TCP ports must be between 0 - 65535
+    Default: 8080
+
+  AppProtocol:
+    Type: String
+    Description: The application server protocol
+    Default: HTTP
+    AllowedValues:
+      - HTTP
+      - HTTPS
+    ConstraintDescription: Specify either HTTTP or HTTPS
 
 Resources:
 
@@ -487,7 +511,7 @@ Resources:
         - Name: !Ref GitSourceRepo
           Image: !Ref SeedDockerImage
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: !Ref AppIngressPort
           Environment:
             - Name: DOCUMENT_DB_ENDPOINT
               Value: !GetAtt DocumentDbCluster.Endpoint
@@ -572,7 +596,7 @@ Resources:
       TaskDefinition: !Ref FargateTaskDefinition
       LoadBalancers:
         - ContainerName: !Ref GitSourceRepo
-          ContainerPort: 80
+          ContainerPort: !Ref AppIngresPort
           TargetGroupArn: !Ref TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -643,6 +667,11 @@ Resources:
     Properties:
       GroupDescription: App security group
       VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - SourceSecurityGroupId: !Ref AlbSecurityGroup
+        IpProtocol: tcp
+        ToPort: !Ref AppIngressPort
+        FromPort: !Ref AppIngressPort
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-AppSecurityGroup
@@ -652,8 +681,8 @@ Resources:
     Properties:
       GroupId: !Ref AppSecurityGroup
       IpProtocol: tcp
-      ToPort: 80
-      FromPort: 80
+      ToPort: !Ref AppIngressPort
+      FromPort: !Ref AppIngressPort
       SourceSecurityGroupId: !Ref AlbSecurityGroup
 
   AlbSecurityGroup:
@@ -664,8 +693,8 @@ Resources:
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         IpProtocol: tcp
-        ToPort: 80
-        FromPort: 80
+        ToPort: !Ref AlbIngressPort
+        FromPort: !Ref AlbIngressPort
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-AlbSecurityGroup
@@ -675,8 +704,8 @@ Resources:
     Properties:
       GroupId: !Ref AlbSecurityGroup
       IpProtocol: tcp
-      ToPort: 80
-      FromPort: 80
+      ToPort: !Ref AppIngressPort
+      FromPort: !Ref AppIngressPort
       DestinationSecurityGroupId: !Ref AppSecurityGroup
 
   DatabaseSubnetGroup:
@@ -694,13 +723,13 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !Ref VpcId
-      Port: 80
-      Protocol: HTTP
+      Port: !Ref AppIngressPort
+      Protocol: !Ref AppProtocol
       Matcher:
         HttpCode: 200
       HealthCheckIntervalSeconds: 10
       HealthCheckPath: /health
-      HealthCheckProtocol: HTTP
+      HealthCheckProtocol: !Ref AppProtocol
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       TargetGroupAttributes:
@@ -728,8 +757,8 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref ApplicationLoadBalancer
-      Port: 80
-      Protocol: HTTP
+      Port: !Ref AlbIngressPort
+      Protocol: !Ref AppProtocol
       DefaultActions:
       - Type: forward
         TargetGroupArn: !Ref TargetGroup
