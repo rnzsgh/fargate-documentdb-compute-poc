@@ -77,6 +77,13 @@ func main() {
 
 	log.Info("This is a test")
 
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		res := &response{Message: "healthy"}
+		out, _ := json.Marshal(res)
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, string(out))
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		f := fib()
@@ -100,7 +107,6 @@ func main() {
 
 		io.WriteString(w, string(out))
 
-		fmt.Println("Hello world - the log message")
 	})
 	http.ListenAndServe(":8080", nil)
 
