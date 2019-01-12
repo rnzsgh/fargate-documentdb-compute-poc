@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/mongo/readpref"
 
@@ -31,7 +32,7 @@ func main() {
 	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-taskdefinition-containerdefinitions.html
 	password := os.Getenv("DOCUMENT_DB_PASSWORD")
 
-	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/?ssl_ca_certs=rds-combined-ca-bundle.pem&replicaSet=rs0", user, password, endpoint, port)
+	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/?ssl=true&replicaSet=rs0", user, password, endpoint, port)
 
 	log.Info(connectionUri)
 
@@ -46,6 +47,17 @@ func main() {
 
 	if err != nil {
 		log.Error(err)
+	}
+
+	collection := client.Database("test").Collection("numbers")
+
+	ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
+	res, err := collection.InsertOne(ctx, bson.M{"name": "pi", "value": 3.14159})
+	if err != nil {
+		log.Error(err)
+	} else {
+		id := res.InsertedID
+		log.Info(id)
 	}
 
 	log.Info("This is a test")
