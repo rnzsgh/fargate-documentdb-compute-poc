@@ -495,9 +495,15 @@ Resources:
               Value: !Ref DatabaseUser
             - Name: DOCUMENT_DB_PASSWORD # This is bad - waiting for secrets support
               Value: !Ref DatabasePassword
-            - Name: TASK_DEFINITION_ARN
-              Value: !Ref FargateTaskDefinitionWorker
-            - Name: TASK_DEFINITION_FAMILY
+            - Name: AWS_ACCOUNT_ID
+              Value: !Ref AWS::AccountId
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: TASK_EXECUTION_ROLE
+              Value: !Ref TaskExecutionRole
+            - Name: TASK_EXECUTION_ROLE_ARN
+              Value: !GetAtt TaskExecutionRole.Arn
+            - Name: TASK_DEFINITION_FAMILY_WORKER
               Value: !Sub ${AWS::StackName}-worker
             - Name: SUBNET_0
               Value: !Ref SubnetId0
