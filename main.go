@@ -41,7 +41,7 @@ func main() {
 		options.Client().SetSSL(
 			&options.SSLOpt{
 				Enabled:                      true,
-				Insecure:                     false,
+				Insecure:                     true,
 				ClientCertificateKeyPassword: nil,
 				CaFile:                       "/rds-combined-ca-bundle.pem",
 			},
