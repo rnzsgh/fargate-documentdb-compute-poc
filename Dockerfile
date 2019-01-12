@@ -17,5 +17,5 @@ COPY --from=builder /go/src/github.com/fargate-documentdb-compute-poc/rds-combin
 COPY --from=builder /etc/passwd /etc/passwd
 USER app
 
-EXPOSE 8080
+EXPOSE 80
 CMD ["/main"]
