@@ -486,6 +486,8 @@ Resources:
       ContainerDefinitions:
         - Name: !Ref GitSourceRepo
           Image: !Ref SeedDockerImage
+          PortMappings:
+            - ContainerPort: 80
           Environment:
             - Name: DOCUMENT_DB_ENDPOINT
               Value: !GetAtt DocumentDbCluster.Endpoint
@@ -568,6 +570,10 @@ Resources:
       DesiredCount: 1
       LaunchType: FARGATE
       TaskDefinition: !Ref FargateTaskDefinition
+      LoadBalancers:
+        - ContainerName: !Ref GitSourceRepo
+          ContainerPort: 80
+          TargetGroupArn: !Ref TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
@@ -576,6 +582,10 @@ Resources:
           Subnets:
             - !Ref SubnetId0
             - !Ref SubnetId1
+    DependsOn:
+      - FargateEcsCluster
+      - FargateTaskDefinition
+      - LoadBalancerListener
 
   DocumentDbCluster:
     Type: AWS::DocDB::DBCluster
@@ -637,6 +647,38 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-AppSecurityGroup
 
+  AppSecurityGroupFromAlbIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AppSecurityGroup
+      IpProtocol: tcp
+      ToPort: 80
+      FromPort: 80
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP/HTTPs ingress
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp
+        ToPort: 80
+        FromPort: 80
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-AlbSecurityGroup
+
+  AlbSecurityGroupToAppEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref AlbSecurityGroup
+      IpProtocol: tcp
+      ToPort: 80
+      FromPort: 80
+      DestinationSecurityGroupId: !Ref AppSecurityGroup
+
   DatabaseSubnetGroup:
     Type: AWS::DocDB::DBSubnetGroup
     Properties:
@@ -647,6 +689,53 @@ Resources:
       Tags:
       - Key: Name
         Value: !Ref AWS::StackName
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      TargetType: ip
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+    DependsOn: ApplicationLoadBalancer
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+        - !Ref SubnetId0
+        - !Ref SubnetId1
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref TargetGroup
+    DependsOn:
+    - TargetGroup
+    - ApplicationLoadBalancer
 
 
 Outputs:
