@@ -111,12 +111,12 @@ type response struct {
 type Job struct {
 	Id    *primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Tasks []*Task             `json:"-" bson:"-"`
-	Start time.Time           `json:"start" bson:"start"`
-	Stop  time.Time           `json:"stop,omitempty" bson:"stop,omitempty"`
+	Start *time.Time          `json:"start" bson:"start"`
+	Stop  *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
 type Task struct {
 	Id    primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Start time.Time          `json:"start" bson:"start"`
-	Stop  time.Time          `json:"stop" bson:"stop,omitempty"`
+	Start *time.Time         `json:"start" bson:"start"`
+	Stop  *time.Time         `json:"stop" bson:"stop,omitempty"`
 }
