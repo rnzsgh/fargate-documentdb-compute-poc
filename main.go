@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mongodb/mongo-go-driver/bson"
+	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 	"github.com/mongodb/mongo-go-driver/mongo/readpref"
@@ -65,7 +66,6 @@ func main() {
 	}
 
 	collection := client.Database("test").Collection("numbers")
-
 	ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
 	res, err := collection.InsertOne(ctx, bson.M{"name": "pi", "value": 3.14159})
 	if err != nil {
@@ -79,10 +79,7 @@ func main() {
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		log.Info("health")
-		res := &response{Message: "healthy"}
-		out, _ := json.Marshal(res)
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, string(out))
+		io.WriteString(w, "ok")
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +94,6 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain")
 
 		out, _ := json.Marshal(res)
-
 		io.WriteString(w, string(out))
 
 	})
@@ -109,15 +105,18 @@ func main() {
 type response struct {
 	Message string   `json:"message"`
 	EnvVars []string `json:"env"`
-	Jobs    []Job    `json:"jobs"`
+	Jobs    []Job    `json:"jobs,omitempty"`
 }
 
 type Job struct {
-	Id    string  `json:"id"`
-	Tasks []*Task `json:"tasks"`
+	Id    *primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Tasks []*Task             `json:"-" bson:"-"`
+	Start time.Time           `json:"start" bson:"start"`
+	Stop  time.Time           `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
 type Task struct {
-	Id       string `json:"id"`
-	StatTime string `json:"tasks"`
+	Id    primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Start time.Time          `json:"start" bson:"start"`
+	Stop  time.Time          `json:"stop" bson:"stop,omitempty"`
 }
