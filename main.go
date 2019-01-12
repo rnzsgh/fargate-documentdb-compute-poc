@@ -13,6 +13,7 @@ import (
 
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/mongo"
+	"github.com/mongodb/mongo-go-driver/mongo/options"
 	"github.com/mongodb/mongo-go-driver/mongo/readpref"
 
 	log "github.com/golang/glog"
@@ -32,12 +33,26 @@ func main() {
 	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-taskdefinition-containerdefinitions.html
 	password := os.Getenv("DOCUMENT_DB_PASSWORD")
 
-	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/?ssl=true&replicaSet=rs0", user, password, endpoint, port)
-
+	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/test?ssl=true&replicaSet=rs0", user, password, endpoint, port)
 	log.Info(connectionUri)
 
+	client, err := mongo.NewClientWithOptions(
+		connectionUri,
+		options.Client().SetSSL(
+			&options.SSLOpt{
+				Enabled:                  true,
+				ClientCertificateKeyFile: "/rds-combined-ca-bundle.pem",
+				Insecure:                 true,
+			},
+		),
+	)
+
+	if err != nil {
+		log.Error(err)
+	}
+
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, connectionUri)
+	err = client.Connect(ctx)
 
 	if err != nil {
 		log.Error(err)
