@@ -40,9 +40,10 @@ func main() {
 		connectionUri,
 		options.Client().SetSSL(
 			&options.SSLOpt{
-				Enabled:                  true,
-				ClientCertificateKeyFile: "/rds-combined-ca-bundle.pem",
-				Insecure:                 true,
+				Enabled:                      true,
+				Insecure:                     false,
+				ClientCertificateKeyPassword: nil,
+				CaFile:                       "/rds-combined-ca-bundle.pem",
 			},
 		),
 	)
