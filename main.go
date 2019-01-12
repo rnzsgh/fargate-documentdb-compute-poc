@@ -86,24 +86,16 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
-		f := fib()
-
 		res := &response{Message: "Hello World"}
 
 		for _, e := range os.Environ() {
 			pair := strings.Split(e, "=")
 			res.EnvVars = append(res.EnvVars, pair[0]+"="+pair[1])
 		}
-
-		for i := 1; i <= 90; i++ {
-			res.Fib = append(res.Fib, f())
-		}
-
-		// Beautify the JSON output
-		out, _ := json.MarshalIndent(res, "", "  ")
-
 		// Normally this would be application/json, but we don't want to prompt downloads
 		w.Header().Set("Content-Type", "text/plain")
+
+		out, _ := json.Marshal(res)
 
 		io.WriteString(w, string(out))
 
@@ -116,13 +108,15 @@ func main() {
 type response struct {
 	Message string   `json:"message"`
 	EnvVars []string `json:"env"`
-	Fib     []int    `json:"fib"`
+	Jobs    []Job    `json:"jobs"`
 }
 
-func fib() func() int {
-	a, b := 0, 1
-	return func() int {
-		a, b = b, a+b
-		return a
-	}
+type Job struct {
+	Id    string  `json:"id"`
+	Tasks []*Task `json:"tasks"`
+}
+
+type Task struct {
+	Id       string `json:"id"`
+	StatTime string `json:"tasks"`
 }
