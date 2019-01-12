@@ -78,6 +78,7 @@ func main() {
 	log.Info("This is a test")
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		log.Info("health")
 		res := &response{Message: "healthy"}
 		out, _ := json.Marshal(res)
 		w.Header().Set("Content-Type", "application/json")
