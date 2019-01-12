@@ -33,6 +33,8 @@ func main() {
 
 	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/?ssl_ca_certs=rds-combined-ca-bundle.pem&replicaSet=rs0", user, password, endpoint, port)
 
+	log.Info(connectionUri)
+
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(ctx, connectionUri)
 
