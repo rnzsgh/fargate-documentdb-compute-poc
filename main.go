@@ -108,7 +108,7 @@ func main() {
 		io.WriteString(w, string(out))
 
 	})
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":80", nil)
 
 	log.Flush()
 }
