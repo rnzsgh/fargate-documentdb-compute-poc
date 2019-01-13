@@ -596,7 +596,7 @@ Resources:
       TaskDefinition: !Ref FargateTaskDefinition
       LoadBalancers:
         - ContainerName: !Ref GitSourceRepo
-          ContainerPort: !Ref AppIngresPort
+          ContainerPort: !Ref AppIngressPort
           TargetGroupArn: !Ref TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
