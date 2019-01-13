@@ -153,7 +153,7 @@ func processJobs(jobs <-chan Job) {
 }
 
 func processJob(job Job) {
-	completed := make(chan Job)
+	//completed := make(chan Job)
 
 }
 
