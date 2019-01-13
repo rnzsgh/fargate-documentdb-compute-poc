@@ -20,6 +20,8 @@ import (
 	log "github.com/golang/glog"
 )
 
+const taskCount = 10
+
 func main() {
 
 	flag.Parse()
@@ -65,6 +67,11 @@ func main() {
 		log.Error(err)
 	}
 
+	jobChannel := make(chan Job)
+
+	// Start the job processor
+	go processJobs(jobChannel)
+
 	collection := client.Database("test").Collection("numbers")
 	ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
 	res, err := collection.InsertOne(ctx, bson.M{"name": "pi", "value": 3.14159})
@@ -80,6 +87,38 @@ func main() {
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		log.Info("/health")
 		io.WriteString(w, "ok")
+	})
+
+	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+		log.Info("/")
+
+		response := &response{}
+
+		var tasks map[primitive.ObjectID]Task
+		for i := 0; i < taskCount; i++ {
+			taskId := primitive.NewObjectID()
+			tasks[taskId] = Task{Id: taskId}
+		}
+
+		job := Job{Start: time.Now(), Tasks: tasks}
+
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		res, err := client.Database("test").Collection("jobs").InsertOne(ctx, job)
+		if err != nil {
+			log.Error(fmt.Sprintf("Problem creating job: %v", err))
+			response.Message = err.Error()
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			log.Info(fmt.Sprintf("New job id: %v", res.InsertedID))
+			response.Message = "Accepted"
+			w.WriteHeader(http.StatusAccepted)
+			jobChannel <- job
+		}
+
+		// Normally this would be application/json, but we don't want to prompt downloads
+		w.Header().Set("Content-Type", "text/plain")
+		out, _ := json.Marshal(response)
+		io.WriteString(w, string(out))
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -98,10 +137,24 @@ func main() {
 		io.WriteString(w, string(out))
 
 	})
+
 	log.Info("ready to serve")
 	http.ListenAndServe(":8080", nil)
 
 	log.Flush()
+}
+
+func processJobs(jobs <-chan Job) {
+
+	for job := range jobs {
+		go processJob(job)
+	}
+
+}
+
+func processJob(job Job) {
+	completed := make(chan Job)
+
 }
 
 type response struct {
@@ -111,14 +164,14 @@ type response struct {
 }
 
 type Job struct {
-	Id    *primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Tasks []*Task             `json:"-" bson:"-"`
-	Start *time.Time          `json:"start" bson:"start"`
-	Stop  *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
+	Id    primitive.ObjectID          `json:"id" bson:"_id,omitempty"`
+	Tasks map[primitive.ObjectID]Task `json:"tasks" bson:"tasks"`
+	Start time.Time                   `json:"start" bson:"start"`
+	Stop  time.Time                   `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
 type Task struct {
-	Id    primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Start *time.Time         `json:"start" bson:"start"`
-	Stop  *time.Time         `json:"stop" bson:"stop,omitempty"`
+	Id    primitive.ObjectID `json:"id" bson:"id"`
+	Start time.Time          `json:"start" bson:"start"`
+	Stop  time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
