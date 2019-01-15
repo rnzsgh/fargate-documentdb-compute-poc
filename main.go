@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
@@ -19,6 +22,15 @@ import (
 
 	log "github.com/golang/glog"
 )
+
+type appContext struct {
+	mClient          *mongo.Client
+	eClient          *ecs.ECS
+	cluster          *string
+	family           *string
+	subnetIds        []*string
+	securityGroupIds []*string
+}
 
 const taskCount = 10
 
@@ -30,6 +42,8 @@ func main() {
 	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
 	port := os.Getenv("DOCUMENT_DB_PORT")
 	user := os.Getenv("DOCUMENT_DB_USER")
+
+	region := os.Getenv("AWS_REGION")
 
 	// This is not secure. Waiting for secrets support in CFN
 	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/specifying-sensitive-data.html
@@ -67,10 +81,19 @@ func main() {
 		log.Error(err)
 	}
 
+	appCtx := &appContext{
+		mClient:          client,
+		eClient:          ecs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(region)),
+		cluster:          aws.String(os.Getenv("CLUSTER_NAME")),
+		family:           aws.String(os.Getenv("TASK_DEFINITION_FAMILY_WORKER")),
+		subnetIds:        []*string{aws.String(os.Getenv("SUBNET_0")), aws.String(os.Getenv("SUBNET_1"))},
+		securityGroupIds: []*string{aws.String(os.Getenv("APP_SECURITY_GROUP_ID"))},
+	}
+
 	jobChannel := make(chan Job)
 
 	// Start the job processor
-	go processJobs(jobChannel)
+	go processJobs(appCtx, jobChannel)
 
 	collection := client.Database("test").Collection("numbers")
 	ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
@@ -141,20 +164,89 @@ func main() {
 	log.Info("ready to serve")
 	http.ListenAndServe(":8080", nil)
 
+	close(jobChannel)
+
 	log.Flush()
 }
 
-func processJobs(jobs <-chan Job) {
-
+func processJobs(appCtx *appContext, jobs <-chan Job) {
 	for job := range jobs {
-		go processJob(job)
+		go processJob(appCtx, job)
 	}
-
 }
 
-func processJob(job Job) {
-	//completed := make(chan Job)
+func processJob(appCtx *appContext, job Job) {
+	completed := make(chan Task)
 
+	taskCount := len(job.Tasks)
+
+	for _, task := range job.Tasks {
+		go processTask(appCtx, task, completed)
+	}
+
+	count := 0
+
+	for {
+		select {
+		case _ = <-completed:
+			count++
+		}
+
+		if count == taskCount {
+			break
+		}
+	}
+}
+
+func processTask(appCtx *appContext, task Task, completed chan<- Task) {
+	// Run the task
+	count := int64(1)
+	for {
+
+		response, err := appCtx.eClient.RunTask(&ecs.RunTaskInput{
+			Cluster:              appCtx.cluster,
+			Count:                aws.Int64(1),
+			EnableECSManagedTags: aws.Bool(true),
+			LaunchType:           aws.String("FARGATE"),
+			NetworkConfiguration: &ecs.NetworkConfiguration{
+				AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
+					SecurityGroups: appCtx.securityGroupIds,
+					Subnets:        appCtx.subnetIds,
+				},
+			},
+			PropagateTags: aws.String("true"),
+			StartedBy:     aws.String(os.Getenv("STACK_NAME")),
+			Tags: []*ecs.Tag{
+				&ecs.Tag{Key: aws.String("Name"), Value: aws.String(os.Getenv("STACK_NAME"))},
+				&ecs.Tag{Key: aws.String("Family"), Value: appCtx.family},
+				&ecs.Tag{Key: aws.String("JobId"), Value: aws.String(task.JobId.String())},
+				&ecs.Tag{Key: aws.String("TaskId"), Value: aws.String(task.Id.String())},
+			},
+			TaskDefinition: appCtx.family,
+		})
+
+		if err != nil {
+			log.Error(fmt.Sprintf("Task run error - job: %s, task: %s - error: %v", task.JobId.String(), task.Id.String(), err))
+			count = wait(count)
+			continue
+		}
+
+		if len(response.Failures) > 0 {
+			for _, failure := range response.Failures {
+				log.Error(fmt.Sprintf("Task run failed - job: %s, task: %s - reason: %s", task.JobId.String(), task.Id.String(), *failure))
+			}
+			count = wait(count)
+			continue
+		}
+
+		log.Info(fmt.Sprintf("Task launched - job: %s, task: %s", task.JobId.String(), task.Id.String()))
+		break
+	}
+}
+
+func wait(count int64) int64 {
+	time.Sleep(time.Duration(count) * time.Second)
+	return count * int64(2)
 }
 
 type response struct {
@@ -172,6 +264,7 @@ type Job struct {
 
 type Task struct {
 	Id    primitive.ObjectID `json:"id" bson:"id"`
+	JobId primitive.ObjectID `json:"jobId" bson:"jobId"`
 	Start time.Time          `json:"start" bson:"start"`
 	Stop  time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
