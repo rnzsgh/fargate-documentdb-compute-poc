@@ -117,7 +117,7 @@ func main() {
 
 		response := &response{}
 
-		var tasks map[primitive.ObjectID]Task
+		tasks := make(map[primitive.ObjectID]Task)
 		for i := 0; i < taskCount; i++ {
 			taskId := primitive.NewObjectID()
 			tasks[taskId] = Task{Id: taskId}
