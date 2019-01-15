@@ -539,6 +539,8 @@ Resources:
               Value: !Ref AppSecurityGroup
             - Name: CLUSTER_NAME
               Value: !Ref FargateEcsCluster
+            - Name: STACK_NAME
+              Value: !Ref AWS::StackName
           LogConfiguration:
             LogDriver: awslogs
             Options:
