@@ -66,15 +66,14 @@ func main() {
 
 		response := &response{}
 
-		tasks := make(map[primitive.ObjectID]Task)
+		tasks := make(map[string]*Task)
 		for i := 0; i < taskCount; i++ {
 			taskId := primitive.NewObjectID()
-			tasks[taskId] = Task{Id: taskId}
+			tasks[taskId.String()] = &Task{Id: &taskId}
 		}
 
-		// hello
-
-		job := Job{Start: time.Now(), Tasks: tasks}
+		now := time.Now()
+		job := &Job{Start: &now, Tasks: tasks}
 
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 		res, err := docdb.Client.Database("test").Collection("jobs").InsertOne(ctx, job)
@@ -86,7 +85,7 @@ func main() {
 			log.Infof("New job id: %v", res.InsertedID)
 			response.Message = "Accepted"
 			w.WriteHeader(http.StatusAccepted)
-			jobChannel <- job
+			jobChannel <- *job
 		}
 
 		// Normally this would be application/json, but we don't want to prompt downloads
@@ -149,7 +148,7 @@ func processJob(appCtx *appContext, job Job) {
 	}
 }
 
-func processTask(appCtx *appContext, task Task, completed chan<- Task) {
+func processTask(appCtx *appContext, task *Task, completed chan<- Task) {
 	// Run the task
 	count := int64(1)
 	for {
@@ -207,15 +206,15 @@ type response struct {
 }
 
 type Job struct {
-	Id    primitive.ObjectID          `json:"id" bson:"_id,omitempty"`
-	Tasks map[primitive.ObjectID]Task `json:"tasks" bson:"tasks"`
-	Start time.Time                   `json:"start" bson:"start"`
-	Stop  time.Time                   `json:"stop,omitempty" bson:"stop,omitempty"`
+	Id    *primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Tasks map[string]*Task    `json:"tasks" bson:"tasks"`
+	Start *time.Time          `json:"start" bson:"start"`
+	Stop  *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
 type Task struct {
-	Id    primitive.ObjectID `json:"id" bson:"id"`
-	JobId primitive.ObjectID `json:"jobId" bson:"jobId"`
-	Start time.Time          `json:"start" bson:"start"`
-	Stop  time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
+	Id    *primitive.ObjectID `json:"id" bson:"id"`
+	JobId *primitive.ObjectID `json:"jobId" bson:"jobId"`
+	Start *time.Time          `json:"start" bson:"start"`
+	Stop  *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
