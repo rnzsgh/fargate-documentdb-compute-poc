@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/docdb"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
-	"github.com/mongodb/mongo-go-driver/mongo/options"
-	"github.com/mongodb/mongo-go-driver/mongo/readpref"
 
 	log "github.com/golang/glog"
 )
@@ -39,53 +39,10 @@ func main() {
 	flag.Parse()
 	flag.Lookup("logtostderr").Value.Set("true")
 
-	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
-	port := os.Getenv("DOCUMENT_DB_PORT")
-	user := os.Getenv("DOCUMENT_DB_USER")
 	region := os.Getenv("AWS_REGION")
-	pemFile := os.Getenv("DOCUMENT_DB_PEM")
-
-	// This is not secure. Waiting for secrets support in CFN
-	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/specifying-sensitive-data.html
-	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-taskdefinition-containerdefinitions.html
-	password := os.Getenv("DOCUMENT_DB_PASSWORD")
-
-	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/test?ssl=true", user, password, endpoint, port)
-
-	if len(os.Getenv("DOCUMENT_DB_LOCAL")) == 0 {
-		connectionUri = connectionUri + "&replicaSet=rs0"
-	}
-
-	client, err := mongo.NewClientWithOptions(
-		connectionUri,
-		options.Client().SetSSL(
-			&options.SSLOpt{
-				Enabled:  true,
-				Insecure: true,
-				CaFile:   pemFile,
-			},
-		),
-	)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = client.Connect(ctx)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	err = client.Ping(ctx, readpref.Primary())
-
-	if err != nil {
-		log.Error(err)
-	}
 
 	appCtx := &appContext{
-		mClient:          client,
+		mClient:          docdb.Client,
 		eClient:          ecs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(region)),
 		cluster:          aws.String(os.Getenv("CLUSTER_NAME")),
 		family:           aws.String(os.Getenv("TASK_DEFINITION_FAMILY_WORKER")),
@@ -98,8 +55,12 @@ func main() {
 	// Start the job processor
 	go processJobs(appCtx, jobChannel)
 
-	collection := client.Database("test").Collection("numbers")
-	ctx, _ = context.WithTimeout(context.Background(), 5*time.Second)
+	if docdb.Client == nil {
+		log.Info("DOCDB CLIENT IS NIL")
+	}
+
+	collection := docdb.Client.Database("test").Collection("numbers")
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	res, err := collection.InsertOne(ctx, bson.M{"name": "pi", "value": 3.14159})
 	if err != nil {
 		log.Error(err)
@@ -131,7 +92,7 @@ func main() {
 		job := Job{Start: time.Now(), Tasks: tasks}
 
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-		res, err := client.Database("test").Collection("jobs").InsertOne(ctx, job)
+		res, err := docdb.Client.Database("test").Collection("jobs").InsertOne(ctx, job)
 		if err != nil {
 			log.Error(fmt.Sprintf("Problem creating job: %v", err))
 			response.Message = err.Error()
