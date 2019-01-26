@@ -515,6 +515,8 @@ Resources:
           Environment:
             - Name: DOCUMENT_DB_ENDPOINT
               Value: !GetAtt DocumentDbCluster.Endpoint
+            - Name: DOCUMENT_DB_PEM
+              Value: rds-combined-ca-bundle.pem
             - Name: DOCUMENT_DB_PORT
               Value: !GetAtt DocumentDbCluster.Port
             - Name: DOCUMENT_DB_USER
