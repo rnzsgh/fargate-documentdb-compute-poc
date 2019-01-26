@@ -66,14 +66,16 @@ func main() {
 
 		response := &response{}
 
+		jobId := primitive.NewObjectID()
+
 		tasks := make(map[string]*Task)
 		for i := 0; i < taskCount; i++ {
 			taskId := primitive.NewObjectID()
-			tasks[taskId.String()] = &Task{Id: &taskId}
+			tasks[taskId.Hex()] = &Task{Id: &taskId, JobId: &jobId}
 		}
 
 		now := time.Now()
-		job := &Job{Start: &now, Tasks: tasks}
+		job := &Job{Id: &jobId, Start: &now, Tasks: tasks}
 
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 		res, err := docdb.Client.Database("test").Collection("jobs").InsertOne(ctx, job)
@@ -130,6 +132,8 @@ func processJob(appCtx *appContext, job Job) {
 
 	taskCount := len(job.Tasks)
 
+	log.Infof("Task count: %d", taskCount)
+
 	for _, task := range job.Tasks {
 		go processTask(appCtx, task, completed)
 	}
@@ -149,7 +153,6 @@ func processJob(appCtx *appContext, job Job) {
 }
 
 func processTask(appCtx *appContext, task *Task, completed chan<- Task) {
-	// Run the task
 	count := int64(1)
 	for {
 
@@ -164,32 +167,32 @@ func processTask(appCtx *appContext, task *Task, completed chan<- Task) {
 					Subnets:        appCtx.cluster.SubnetIds,
 				},
 			},
-			PropagateTags: aws.String("true"),
-			StartedBy:     aws.String(os.Getenv("STACK_NAME")),
+			StartedBy: aws.String(os.Getenv("STACK_NAME")),
 			Tags: []*ecs.Tag{
 				&ecs.Tag{Key: aws.String("Name"), Value: aws.String(os.Getenv("STACK_NAME"))},
 				&ecs.Tag{Key: aws.String("Family"), Value: appCtx.cluster.WorkerTaskFamily},
-				&ecs.Tag{Key: aws.String("JobId"), Value: aws.String(task.JobId.String())},
-				&ecs.Tag{Key: aws.String("TaskId"), Value: aws.String(task.Id.String())},
+				&ecs.Tag{Key: aws.String("JobId"), Value: aws.String(task.JobId.Hex())},
+				&ecs.Tag{Key: aws.String("TaskId"), Value: aws.String(task.Id.Hex())},
 			},
 			TaskDefinition: appCtx.cluster.WorkerTaskFamily,
 		})
 
 		if err != nil {
-			log.Errorf("Task run error - job: %s, task: %s - error: %v", task.JobId.String(), task.Id.String(), err)
+			log.Errorf("Task run error - job: %s, task: %s - error: %v", task.JobId.Hex(), task.Id.Hex(), err)
 			count = wait(count)
 			continue
 		}
 
 		if len(response.Failures) > 0 {
+			log.Info("We have failures")
 			for _, failure := range response.Failures {
-				log.Errorf("Task run failed - job: %s, task: %s - reason: %s", task.JobId.String(), task.Id.String(), *failure)
+				log.Errorf("Task run failed - job: %s, task: %s - reason: %s", task.JobId.Hex(), task.Id.Hex(), *failure)
 			}
 			count = wait(count)
 			continue
 		}
 
-		log.Info("Task launched - job: %s, task: %s", task.JobId.String(), task.Id.String())
+		log.Info("Task launched - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
 		break
 	}
 }
