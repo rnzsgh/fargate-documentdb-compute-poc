@@ -4,17 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/cloud"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/docdb"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
@@ -24,12 +23,8 @@ import (
 )
 
 type appContext struct {
-	mClient          *mongo.Client
-	eClient          *ecs.ECS
-	cluster          *string
-	family           *string
-	subnetIds        []*string
-	securityGroupIds []*string
+	docDbClient *mongo.Client
+	cluster     *cloud.EcsCluster
 }
 
 const taskCount = 10
@@ -39,25 +34,15 @@ func main() {
 	flag.Parse()
 	flag.Lookup("logtostderr").Value.Set("true")
 
-	region := os.Getenv("AWS_REGION")
-
 	appCtx := &appContext{
-		mClient:          docdb.Client,
-		eClient:          ecs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(region)),
-		cluster:          aws.String(os.Getenv("CLUSTER_NAME")),
-		family:           aws.String(os.Getenv("TASK_DEFINITION_FAMILY_WORKER")),
-		subnetIds:        []*string{aws.String(os.Getenv("SUBNET_0")), aws.String(os.Getenv("SUBNET_1"))},
-		securityGroupIds: []*string{aws.String(os.Getenv("APP_SECURITY_GROUP_ID"))},
+		docDbClient: docdb.Client,
+		cluster:     cloud.Ecs,
 	}
 
 	jobChannel := make(chan Job)
 
 	// Start the job processor
 	go processJobs(appCtx, jobChannel)
-
-	if docdb.Client == nil {
-		log.Info("DOCDB CLIENT IS NIL")
-	}
 
 	collection := docdb.Client.Database("test").Collection("numbers")
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
@@ -94,11 +79,11 @@ func main() {
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 		res, err := docdb.Client.Database("test").Collection("jobs").InsertOne(ctx, job)
 		if err != nil {
-			log.Error(fmt.Sprintf("Problem creating job: %v", err))
+			log.Errorf("Problem creating job: %v", err)
 			response.Message = err.Error()
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
-			log.Info(fmt.Sprintf("New job id: %v", res.InsertedID))
+			log.Infof("New job id: %v", res.InsertedID)
 			response.Message = "Accepted"
 			w.WriteHeader(http.StatusAccepted)
 			jobChannel <- job
@@ -169,43 +154,43 @@ func processTask(appCtx *appContext, task Task, completed chan<- Task) {
 	count := int64(1)
 	for {
 
-		response, err := appCtx.eClient.RunTask(&ecs.RunTaskInput{
-			Cluster:              appCtx.cluster,
+		response, err := appCtx.cluster.Client.RunTask(&ecs.RunTaskInput{
+			Cluster:              appCtx.cluster.Name,
 			Count:                aws.Int64(1),
 			EnableECSManagedTags: aws.Bool(true),
 			LaunchType:           aws.String("FARGATE"),
 			NetworkConfiguration: &ecs.NetworkConfiguration{
 				AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
-					SecurityGroups: appCtx.securityGroupIds,
-					Subnets:        appCtx.subnetIds,
+					SecurityGroups: appCtx.cluster.TaskSecurityGroupIds,
+					Subnets:        appCtx.cluster.SubnetIds,
 				},
 			},
 			PropagateTags: aws.String("true"),
 			StartedBy:     aws.String(os.Getenv("STACK_NAME")),
 			Tags: []*ecs.Tag{
 				&ecs.Tag{Key: aws.String("Name"), Value: aws.String(os.Getenv("STACK_NAME"))},
-				&ecs.Tag{Key: aws.String("Family"), Value: appCtx.family},
+				&ecs.Tag{Key: aws.String("Family"), Value: appCtx.cluster.WorkerTaskFamily},
 				&ecs.Tag{Key: aws.String("JobId"), Value: aws.String(task.JobId.String())},
 				&ecs.Tag{Key: aws.String("TaskId"), Value: aws.String(task.Id.String())},
 			},
-			TaskDefinition: appCtx.family,
+			TaskDefinition: appCtx.cluster.WorkerTaskFamily,
 		})
 
 		if err != nil {
-			log.Error(fmt.Sprintf("Task run error - job: %s, task: %s - error: %v", task.JobId.String(), task.Id.String(), err))
+			log.Errorf("Task run error - job: %s, task: %s - error: %v", task.JobId.String(), task.Id.String(), err)
 			count = wait(count)
 			continue
 		}
 
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
-				log.Error(fmt.Sprintf("Task run failed - job: %s, task: %s - reason: %s", task.JobId.String(), task.Id.String(), *failure))
+				log.Errorf("Task run failed - job: %s, task: %s - reason: %s", task.JobId.String(), task.Id.String(), *failure)
 			}
 			count = wait(count)
 			continue
 		}
 
-		log.Info(fmt.Sprintf("Task launched - job: %s, task: %s", task.JobId.String(), task.Id.String()))
+		log.Info("Task launched - job: %s, task: %s", task.JobId.String(), task.Id.String())
 		break
 	}
 }
