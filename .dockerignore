@@ -6,3 +6,5 @@ compute.cfn.yml
 README.md
 Dockerfile
 test.sh
+data
+local.pem
