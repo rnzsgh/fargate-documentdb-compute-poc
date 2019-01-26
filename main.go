@@ -42,16 +42,19 @@ func main() {
 	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
 	port := os.Getenv("DOCUMENT_DB_PORT")
 	user := os.Getenv("DOCUMENT_DB_USER")
-
 	region := os.Getenv("AWS_REGION")
+	pemFile := os.Getenv("DOCUMENT_DB_PEM")
 
 	// This is not secure. Waiting for secrets support in CFN
 	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/specifying-sensitive-data.html
 	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-taskdefinition-containerdefinitions.html
 	password := os.Getenv("DOCUMENT_DB_PASSWORD")
 
-	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/test?ssl=true&replicaSet=rs0", user, password, endpoint, port)
-	log.Info(connectionUri)
+	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/test?ssl=true", user, password, endpoint, port)
+
+	if len(os.Getenv("DOCUMENT_DB_LOCAL")) == 0 {
+		connectionUri = connectionUri + "&replicaSet=rs0"
+	}
 
 	client, err := mongo.NewClientWithOptions(
 		connectionUri,
@@ -59,7 +62,7 @@ func main() {
 			&options.SSLOpt{
 				Enabled:  true,
 				Insecure: true,
-				CaFile:   "/rds-combined-ca-bundle.pem",
+				CaFile:   pemFile,
 			},
 		),
 	)
