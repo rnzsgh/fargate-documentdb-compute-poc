@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/cloud"
+
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 	"github.com/mongodb/mongo-go-driver/mongo/readpref"
@@ -22,10 +24,7 @@ func init() {
 	user := os.Getenv("DOCUMENT_DB_USER")
 	pemFile := os.Getenv("DOCUMENT_DB_PEM")
 
-	// This is not secure. Waiting for secrets support in CFN
-	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/specifying-sensitive-data.html
-	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-taskdefinition-containerdefinitions.html
-	password := os.Getenv("DOCUMENT_DB_PASSWORD")
+	password := cloud.Secrets.DatabasePassword
 
 	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/test?ssl=true", user, password, endpoint, port)
 
