@@ -9,7 +9,6 @@ import (
 )
 
 type EcsCluster struct {
-	Client               *ecs.ECS
 	Name                 *string
 	SubnetIds            []*string
 	TaskSecurityGroupIds []*string
@@ -18,9 +17,12 @@ type EcsCluster struct {
 
 var Ecs *EcsCluster
 
+func (e *EcsCluster) Client() *ecs.ECS {
+	return ecs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(os.Getenv("AWS_REGION")))
+}
+
 func init() {
 	Ecs = &EcsCluster{
-		Client:               ecs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(os.Getenv("AWS_REGION"))),
 		Name:                 aws.String(os.Getenv("CLUSTER_NAME")),
 		SubnetIds:            []*string{aws.String(os.Getenv("SUBNET_0")), aws.String(os.Getenv("SUBNET_1"))},
 		TaskSecurityGroupIds: []*string{aws.String(os.Getenv("APP_SECURITY_GROUP_ID"))},
