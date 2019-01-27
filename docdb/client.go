@@ -17,8 +17,6 @@ var Client *mongo.Client
 
 func init() {
 
-	log.Info("Init called here")
-
 	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
 	port := os.Getenv("DOCUMENT_DB_PORT")
 	user := os.Getenv("DOCUMENT_DB_USER")
