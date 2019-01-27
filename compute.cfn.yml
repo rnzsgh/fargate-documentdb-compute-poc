@@ -50,35 +50,35 @@ Parameters:
 
   ContainerCpu:
     Type: Number
-    Description: "Amount of CPU for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Description: Amount of CPU for the container - https://aws.amazon.com/fargate/pricing/
     Default: 512
     MinValue: 256
     MaxValue: 4096
-    ConstraintDescription: "Value must be between 256 and 4096"
+    ConstraintDescription: Value must be between 256 and 4096
 
   ContainerMemory:
     Type: Number
-    Description: "Amount of memory for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Description: Amount of memory for the container - https://aws.amazon.com/fargate/pricing/
     Default: 1024
     MinValue: 512
     MaxValue: 30720
-    ConstraintDescription: "Value must be between 512 and 30720"
+    ConstraintDescription: Value must be between 512 and 30720
 
   ContainerCpuWorker:
     Type: Number
-    Description: "Amount of CPU for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Description: Amount of CPU for the container - https://aws.amazon.com/fargate/pricing/
     Default: 1024
     MinValue: 256
     MaxValue: 4096
-    ConstraintDescription: "Value must be between 256 and 4096"
+    ConstraintDescription: Value must be between 256 and 4096
 
   ContainerMemoryWorker:
     Type: Number
-    Description: "Amount of memory for the container - options available: https://aws.amazon.com/fargate/pricing/"
+    Description: Amount of memory for the container - https://aws.amazon.com/fargate/pricing/
     Default: 2048
     MinValue: 512
     MaxValue: 30720
-    ConstraintDescription: "Value must be between 512 and 30720"
+    ConstraintDescription: Value must be between 512 and 30720
 
   DatabaseUser:
     Default: root
@@ -101,7 +101,7 @@ Parameters:
   DatabaseInstanceClass:
     Default: db.r4.large
     Type: String
-    Description: "Database instance class"
+    Description: Database instance class
     ConstraintDescription: DB instance class not supported
     AllowedValues:
       - db.r4.large
@@ -135,6 +135,7 @@ Parameters:
       - HTTP
       - HTTPS
     ConstraintDescription: Specify either HTTTP or HTTPS
+
 
 Resources:
 
@@ -474,15 +475,27 @@ Resources:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: run-tasks
+        - PolicyName: run-task
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - ecs:RunTask
-                  - ecs:StartTask
-                Resource: !Ref FargateTaskDefinitionWorker
+                  - ecs:List*
+                  - ecs:Describe*
+                Condition:
+                  ArnEquals:
+                    ecs:cluster: !GetAtt FargateEcsCluster.Arn
+                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${AWS::StackName}-worker:*
+        - PolicyName: get-secret
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref DatabasePasswordSecret
 
   TaskRoleWorker:
     Type: AWS::IAM::Role
@@ -495,6 +508,15 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
+      Policies:
+        - PolicyName: get-secret
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref DatabasePasswordSecret
 
   FargateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -521,8 +543,8 @@ Resources:
               Value: !GetAtt DocumentDbCluster.Port
             - Name: DOCUMENT_DB_USER
               Value: !Ref DatabaseUser
-            - Name: DOCUMENT_DB_PASSWORD # This is bad - waiting for secrets support
-              Value: !Ref DatabasePassword
+            - Name: DOCUMENT_DB_PASSWORD_SECRET_NAME
+              Value: !Sub ${AWS::AccountId}-DatabasePassword
             - Name: AWS_ACCOUNT_ID
               Value: !Ref AWS::AccountId
             - Name: AWS_REGION
@@ -569,6 +591,12 @@ Resources:
               Value: !GetAtt DocumentDbCluster.Endpoint
             - Name: DOCUMENT_DB_PORT
               Value: !GetAtt DocumentDbCluster.Port
+            - Name: DOCUMENT_DB_PASSWORD_SECRET_NAME
+              Value: !Sub ${AWS::AccountId}-DatabasePassword
+            - Name: DOCUMENT_DB_USER
+              Value: !Ref DatabaseUser
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -614,6 +642,12 @@ Resources:
       - FargateEcsCluster
       - FargateTaskDefinition
       - LoadBalancerListener
+
+  DatabasePasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      SecretString: !Ref DatabasePassword
+      Name: !Sub ${AWS::StackName}-DatabasePassword
 
   DocumentDbCluster:
     Type: AWS::DocDB::DBCluster
@@ -884,4 +918,14 @@ Outputs:
     Value: !GetAtt CodePipelineWorkerArtifactBucket.Arn
     Export:
       Name: !Sub ${AWS::StackName}-CodePipelineWorkerArtifactBucketArn
+
+  DatabasePasswordSecretArn:
+    Value: !Ref DatabasePasswordSecret
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabasePasswordSecretArn
+
+  DatabasePasswordSecretName:
+    Value: !Sub ${AWS::StackName}-DatabasePassword
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabasePasswordSecretName
 
