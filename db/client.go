@@ -60,6 +60,4 @@ func init() {
 	if err != nil {
 		log.Errorf("Unable to ping db: %v", err)
 	}
-
-	log.Info("Init done")
 }
