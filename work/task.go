@@ -1,6 +1,7 @@
 package work
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -15,8 +16,61 @@ import (
 func init() {
 }
 
-func processTask(task *Task, completed chan<- *Task) {
+func processTask(task *Task, completedChannel chan<- *Task) {
+	waitForTask(task, launchTask(task), completedChannel)
+}
+
+func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
+	client := cloud.Ecs.Client()
+	for {
+		time.Sleep(1 * time.Minute)
+
+		response, err := client.DescribeTasks(&ecs.DescribeTasksInput{
+			Cluster: cloud.Ecs.Name,
+			Tasks:   []*string{aws.String(taskArn)},
+		})
+
+		if err != nil {
+			log.Errorf(
+				"Cannot describe task - job: %s - task: %s - task arn: %s - err: %v",
+				task.JobId.Hex(),
+				task.Id.Hex(),
+				taskArn,
+				err,
+			)
+			continue
+		}
+
+		if len(response.Failures) > 0 {
+			for _, failure := range response.Failures {
+				log.Errorf("Task failed - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), *failure.Reason)
+				task.FailureReason = *failure.Reason
+			}
+			completedChannel <- task
+			return
+		}
+
+		for _, submittedTask := range response.Tasks {
+			for _, container := range submittedTask.Containers {
+				lastStatus := container.LastStatus
+				if lastStatus != nil && *lastStatus == "STOPPED" {
+					exitCode := container.ExitCode
+					if *exitCode != 0 {
+						task.FailureReason = fmt.Sprintf("Task did not have a zero exit code - %d", *exitCode)
+					}
+					task.Stop = submittedTask.StoppedAt
+					log.Infof("Task stopped - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
+					completedChannel <- task
+					return
+				}
+			}
+		}
+	}
+}
+
+func launchTask(task *Task) string {
 	count := int64(1)
+	var taskArn *string
 	for {
 		response, err := cloud.Ecs.Client().RunTask(&ecs.RunTaskInput{
 			Cluster:              cloud.Ecs.Name,
@@ -48,23 +102,21 @@ func processTask(task *Task, completed chan<- *Task) {
 
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
-				log.Errorf("Task run failed - job: %s, task: %s - reason: %s", task.JobId.Hex(), task.Id.Hex(), *failure)
+				log.Errorf("Task run failed - job: %s - task: %s - reason: %s", task.JobId.Hex(), task.Id.Hex(), *failure)
 			}
 			count = wait(count)
 			continue
 		}
 
+		for _, submittedTask := range response.Tasks {
+			for _, container := range submittedTask.Containers {
+				taskArn = container.TaskArn
+			}
+		}
+
 		log.Infof("Task launched - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
-		break
+		return *taskArn
 	}
-
-	// Wait for task to complete
-	for {
-		time.Sleep(1 * time.Minute)
-
-	}
-
-	// TODO: Poll and wait for task to complete - update stop time
 }
 
 func wait(count int64) int64 {
@@ -73,9 +125,9 @@ func wait(count int64) int64 {
 }
 
 type Task struct {
-	Id      *primitive.ObjectID `json:"id" bson:"id"`
-	JobId   *primitive.ObjectID `json:"jobId" bson:"jobId"`
-	Failure string              `json:"failure" bson:"failure"`
-	Start   *time.Time          `json:"start" bson:"start"`
-	Stop    *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
+	Id            *primitive.ObjectID `json:"id" bson:"id"`
+	JobId         *primitive.ObjectID `json:"jobId" bson:"jobId"`
+	FailureReason string              `json:"failure" bson:"failure"`
+	Start         *time.Time          `json:"start" bson:"start"`
+	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
