@@ -18,7 +18,6 @@ func init() {
 func processTask(task *Task, completed chan<- *Task) {
 	count := int64(1)
 	for {
-
 		response, err := cloud.Ecs.Client().RunTask(&ecs.RunTaskInput{
 			Cluster:              cloud.Ecs.Name,
 			Count:                aws.Int64(1),
@@ -28,6 +27,7 @@ func processTask(task *Task, completed chan<- *Task) {
 				AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
 					SecurityGroups: cloud.Ecs.TaskSecurityGroupIds,
 					Subnets:        cloud.Ecs.SubnetIds,
+					AssignPublicIp: aws.String("ENABLED"),
 				},
 			},
 			StartedBy: aws.String(os.Getenv("STACK_NAME")),
@@ -54,8 +54,7 @@ func processTask(task *Task, completed chan<- *Task) {
 			continue
 		}
 
-		log.Info("Task launched - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
-
+		log.Infof("Task launched - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
 		break
 	}
 
