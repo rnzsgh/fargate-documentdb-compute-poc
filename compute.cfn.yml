@@ -3,6 +3,8 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Description: Fargate Compute Example with DocumentDB
 
+# TODO: Once finished, make pipelines depend on DB
+
 Parameters:
 
   VpcId:
