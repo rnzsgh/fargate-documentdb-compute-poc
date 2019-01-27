@@ -4,13 +4,12 @@ import (
 	"context"
 	"time"
 
-	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
-
+	log "github.com/golang/glog"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
 )
 
 var SubmitJobChannel = make(chan *Job)
-var JobResultChannel = make(chan *Job)
 
 func init() {
 	go processJobs(SubmitJobChannel)
@@ -26,23 +25,22 @@ func processJob(job *Job) {
 
 	if err := createJobEntry(job); err != nil {
 		job.FailureReason = err.Error()
-		JobResultChannel <- job
 		return
 	}
 
-	completed := make(chan *Task)
+	completedTaskChannel := make(chan *Task)
 
 	taskCount := len(job.Tasks)
 
 	for _, task := range job.Tasks {
-		go processTask(task, completed)
+		go processTask(task, completedTaskChannel)
 	}
 
 	count := 0
 
 	for {
 		select {
-		case _ = <-completed:
+		case _ = <-completedTaskChannel:
 			count++
 		}
 
@@ -51,15 +49,32 @@ func processJob(job *Job) {
 		}
 	}
 
-	// TODO: Update job struct if there are errors
-	// Update job in db
+	log.Infof("Job work completed - id: %s", job.Id.Hex())
 
-	JobResultChannel <- job
+	if len(job.FailureReason) > 0 {
+		log.Errorf("Job had a failure - id: %s - reason: %s", job.Id.Hex(), job.FailureReason)
+	}
+
+	for _, task := range job.Tasks {
+		if len(task.FailureReason) > 0 {
+			log.Errorf("Job task had a failure - id: %s task: %s - reason: %s", job.Id.Hex(), task.Id.Hex(), job.FailureReason)
+		}
+	}
+
+	if err := updateJobEntry(job); err != nil {
+		log.Errorf("Failed to update job in db - id: %s task: %s - error: %v", job.Id.Hex(), task.Id.Hex(), err)
+	}
+}
+
+func updateJobEntry(job *Job) (err error) {
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err = docdb.Client.Database("work").Collection("jobs").Update(ctx, job)
+	return
 }
 
 func createJobEntry(job *Job) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err = docdb.Client.Database("test").Collection("jobs").InsertOne(ctx, job)
+	_, err = docdb.Client.Database("work").Collection("jobs").InsertOne(ctx, job)
 	return
 }
 
