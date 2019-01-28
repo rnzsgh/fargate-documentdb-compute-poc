@@ -60,16 +60,7 @@ func processJob(job *Job) {
 			log.Errorf("Job task had a failure - id: %s task: %s - reason: %s", job.Id.Hex(), task.Id.Hex(), job.FailureReason)
 		}
 	}
-
-	if err := updateJobEntry(job); err != nil {
-		log.Errorf("Failed to update job in db - id: %s task: %s - error: %v", job.Id.Hex(), task.Id.Hex(), err)
-	}
-}
-
-func updateJobEntry(job *Job) (err error) {
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err = docdb.Client.Database("work").Collection("jobs").Update(ctx, job)
-	return
+	// TODO: Update stop time for job
 }
 
 func createJobEntry(job *Job) (err error) {
