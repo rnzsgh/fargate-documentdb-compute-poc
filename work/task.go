@@ -13,9 +13,6 @@ import (
 	log "github.com/golang/glog"
 )
 
-func init() {
-}
-
 func processTask(task *Task, completedChannel chan<- *Task) {
 	waitForTask(task, launchTask(task), completedChannel)
 }
@@ -43,11 +40,10 @@ func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
 
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
+				// TODO: Update failure reason in db
 				log.Errorf("Task failed - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), *failure.Reason)
 				task.FailureReason = *failure.Reason
 			}
-			completedChannel <- task
-			return
 		}
 
 		for _, submittedTask := range response.Tasks {
@@ -56,8 +52,11 @@ func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
 				if lastStatus != nil && *lastStatus == "STOPPED" {
 					exitCode := container.ExitCode
 					if *exitCode != 0 {
+						// TODO: Update reason in database
 						task.FailureReason = fmt.Sprintf("Task did not have a zero exit code - %d", *exitCode)
 					}
+
+					// TODO: Update stop time in database
 					task.Stop = submittedTask.StoppedAt
 					log.Infof("Task stopped - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
 					completedChannel <- task
@@ -127,7 +126,7 @@ func wait(count int64) int64 {
 type Task struct {
 	Id            *primitive.ObjectID `json:"id" bson:"id"`
 	JobId         *primitive.ObjectID `json:"jobId" bson:"jobId"`
-	FailureReason string              `json:"failure" bson:"failure"`
+	FailureReason string              `json:"failureReason" bson:"failureReason"`
 	Start         *time.Time          `json:"start" bson:"start"`
 	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
