@@ -17,7 +17,7 @@ type Job struct {
 	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
-func updateJobFailureReason(id *primitive.ObjectID, reason string) (err error) {
+func UpdateJobFailureReason(id *primitive.ObjectID, reason string) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
@@ -26,7 +26,7 @@ func updateJobFailureReason(id *primitive.ObjectID, reason string) (err error) {
 	return
 }
 
-func updateJobStopTime(id *primitive.ObjectID) (err error) {
+func UpdateJobStopTime(id *primitive.ObjectID) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
@@ -35,13 +35,13 @@ func updateJobStopTime(id *primitive.ObjectID) (err error) {
 	return
 }
 
-func createJobEntry(job *Job) (err error) {
+func CreateJob(job *Job) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").InsertOne(ctx, job)
 	return
 }
 
-func findJobById(id *primitive.ObjectID) (job *Job, err error) {
+func FindJobById(id *primitive.ObjectID) (job *Job, err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	job = &Job{}
 	err = docdb.Client.Database("work").Collection("jobs").FindOne(ctx, bson.D{{"_id", id}}).Decode(job)

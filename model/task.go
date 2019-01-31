@@ -18,7 +18,7 @@ type Task struct {
 	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
-func updateTaskFailureReason(task *Task, reason string) (err error) {
+func UpdateTaskFailureReason(task *Task, reason string) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
@@ -27,16 +27,11 @@ func updateTaskFailureReason(task *Task, reason string) (err error) {
 	return
 }
 
-func updateTaskStopTime(task *Task) (err error) {
+func UpdateTaskStopTime(task *Task) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
 		bson.D{{"_id", task.JobId}},
 		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.stop", task.Id.Hex()), task.Stop}}}})
 	return
-}
-
-func wait(count int64) int64 {
-	time.Sleep(time.Duration(count) * time.Second)
-	return count * int64(2)
 }
