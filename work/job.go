@@ -25,7 +25,7 @@ func processJobs(jobs <-chan *Job) {
 func processJob(job *Job) {
 
 	if err := createJobEntry(job); err != nil {
-		job.FailureReason = err.Error()
+		log.Errorf("Unable to create job entry: %v", err)
 		return
 	}
 
