@@ -5,19 +5,20 @@ import (
 	"time"
 
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 )
 
 var taskTestJobId = primitive.NewObjectID()
 
-var testJob *Job
+var testJob *model.Job
 
 func TestCreateJobWithTasksEntry(t *testing.T) {
 	now := time.Now()
-	testJob = &Job{Id: &taskTestJobId, Start: &now, Stop: &now}
-	testJob.Tasks = make(map[string]*Task)
+	testJob = &model.Job{Id: &taskTestJobId, Start: &now, Stop: &now}
+	testJob.Tasks = make(map[string]*model.Task)
 	for i := 0; i < 2; i++ {
 		taskId := primitive.NewObjectID()
-		testJob.Tasks[taskId.Hex()] = &Task{Id: &taskId, JobId: &taskTestJobId}
+		testJob.Tasks[taskId.Hex()] = &model.Task{Id: &taskId, JobId: &taskTestJobId}
 	}
 	if err := createJobEntry(testJob); err != nil {
 		t.Errorf("Problem creating job entry for test task: %v", err)

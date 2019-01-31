@@ -8,28 +8,29 @@ import (
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 )
 
-var SubmitJobChannel = make(chan *Job)
+var SubmitJobChannel = make(chan *model.Job)
 
 func init() {
 	go processJobs(SubmitJobChannel)
 }
 
-func processJobs(jobs <-chan *Job) {
+func processJobs(jobs <-chan *model.Job) {
 	for job := range jobs {
 		go processJob(job)
 	}
 }
 
-func processJob(job *Job) {
+func processJob(job *model.Job) {
 
 	if err := createJobEntry(job); err != nil {
 		log.Errorf("Unable to create job entry: %v", err)
 		return
 	}
 
-	completedTaskChannel := make(chan *Task)
+	completedTaskChannel := make(chan *model.Task)
 
 	taskCount := len(job.Tasks)
 
@@ -88,23 +89,15 @@ func updateJobStopTime(id *primitive.ObjectID) (err error) {
 	return
 }
 
-func createJobEntry(job *Job) (err error) {
+func createJobEntry(job *model.Job) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").InsertOne(ctx, job)
 	return
 }
 
-func findJobById(id *primitive.ObjectID) (job *Job, err error) {
+func findJobById(id *primitive.ObjectID) (job *model.Job, err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	job = &Job{}
+	job = &model.Job{}
 	err = docdb.Client.Database("work").Collection("jobs").FindOne(ctx, bson.D{{"_id", id}}).Decode(job)
 	return
-}
-
-type Job struct {
-	Id            *primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Tasks         map[string]*Task    `json:"tasks" bson:"tasks"`
-	FailureReason string              `json:"failure" bson:"failure"`
-	Start         *time.Time          `json:"start" bson:"start"`
-	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }

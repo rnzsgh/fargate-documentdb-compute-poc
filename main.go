@@ -11,6 +11,7 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/work"
 )
 
@@ -30,14 +31,14 @@ func main() {
 
 		// Create an example job
 		jobId := primitive.NewObjectID()
-		tasks := make(map[string]*work.Task)
+		tasks := make(map[string]*model.Task)
 		for i := 0; i < taskCount; i++ {
 			taskId := primitive.NewObjectID()
-			tasks[taskId.Hex()] = &work.Task{Id: &taskId, JobId: &jobId}
+			tasks[taskId.Hex()] = &model.Task{Id: &taskId, JobId: &jobId}
 		}
 
 		now := time.Now()
-		job := &work.Job{Id: &jobId, Start: &now, Tasks: tasks}
+		job := &model.Job{Id: &jobId, Start: &now, Tasks: tasks}
 
 		work.SubmitJobChannel <- job
 
@@ -76,7 +77,7 @@ func main() {
 }
 
 type response struct {
-	Message string    `json:"message"`
-	EnvVars []string  `json:"env"`
-	Job     *work.Job `json:"job,omitempty"`
+	Message string     `json:"message"`
+	EnvVars []string   `json:"env"`
+	Job     *model.Job `json:"job,omitempty"`
 }

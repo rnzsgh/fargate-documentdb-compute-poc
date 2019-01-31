@@ -9,18 +9,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/mongodb/mongo-go-driver/bson"
-	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/cloud"
 	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/util"
 
 	log "github.com/golang/glog"
 )
 
-func processTask(task *Task, completedChannel chan<- *Task) {
+func processTask(task *model.Task, completedChannel chan<- *model.Task) {
 	waitForTask(task, launchTask(task), completedChannel)
 }
 
-func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
+func waitForTask(task *model.Task, taskArn string, completedChannel chan<- *model.Task) {
 	client := cloud.Ecs.Client()
 	for {
 		time.Sleep(1 * time.Minute)
@@ -76,7 +77,7 @@ func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
 	}
 }
 
-func launchTask(task *Task) string {
+func launchTask(task *model.Task) string {
 	count := int64(1)
 	var taskArn *string
 	for {
@@ -104,7 +105,7 @@ func launchTask(task *Task) string {
 
 		if err != nil {
 			log.Errorf("Task run error - job: %s, task: %s - error: %v", task.JobId.Hex(), task.Id.Hex(), err)
-			count = wait(count)
+			count = util.WaitSeconds(count)
 			continue
 		}
 
@@ -112,7 +113,7 @@ func launchTask(task *Task) string {
 			for _, failure := range response.Failures {
 				log.Errorf("Task run failed - job: %s - task: %s - reason: %s", task.JobId.Hex(), task.Id.Hex(), *failure)
 			}
-			count = wait(count)
+			count = util.WaitSeconds(count)
 			continue
 		}
 
@@ -127,7 +128,7 @@ func launchTask(task *Task) string {
 	}
 }
 
-func updateTaskFailureReason(task *Task, reason string) (err error) {
+func updateTaskFailureReason(task *model.Task, reason string) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
@@ -136,24 +137,11 @@ func updateTaskFailureReason(task *Task, reason string) (err error) {
 	return
 }
 
-func updateTaskStopTime(task *Task) (err error) {
+func updateTaskStopTime(task *model.Task) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
 		bson.D{{"_id", task.JobId}},
 		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.stop", task.Id.Hex()), task.Stop}}}})
 	return
-}
-
-func wait(count int64) int64 {
-	time.Sleep(time.Duration(count) * time.Second)
-	return count * int64(2)
-}
-
-type Task struct {
-	Id            *primitive.ObjectID `json:"id" bson:"id"`
-	JobId         *primitive.ObjectID `json:"jobId" bson:"jobId"`
-	FailureReason string              `json:"failure" bson:"failure"`
-	Start         *time.Time          `json:"start" bson:"start"`
-	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }

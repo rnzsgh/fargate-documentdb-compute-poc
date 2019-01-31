@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 )
 
 var testJobId = primitive.NewObjectID()
@@ -12,7 +13,7 @@ var testJobId = primitive.NewObjectID()
 func TestCreateJobEntry(t *testing.T) {
 	t.Run("TestCreateJobEntry", func(t *testing.T) {
 		now := time.Now()
-		if err := createJobEntry(&Job{Id: &testJobId, Start: &now, Stop: &now}); err != nil {
+		if err := createJobEntry(&model.Job{Id: &testJobId, Start: &now, Stop: &now}); err != nil {
 			t.Errorf("Problem creating job entry: %v", err)
 		} else {
 			if j, err := findJobById(&testJobId); err != nil {
