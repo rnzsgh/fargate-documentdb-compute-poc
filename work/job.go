@@ -54,7 +54,7 @@ func processJob(job *Job) {
 
 	if len(job.FailureReason) > 0 {
 		log.Errorf("Job had a failure - id: %s - reason: %s", job.Id.Hex(), job.FailureReason)
-		if err := updateJobFailureReason(job, job.FailureReason); err != nil {
+		if err := updateJobFailureReason(job.Id, job.FailureReason); err != nil {
 			log.Errorf("Job failed to update db failure reason - id: %s - reason: %v", job.Id.Hex(), err)
 		}
 	}
@@ -65,25 +65,25 @@ func processJob(job *Job) {
 		}
 	}
 
-	if err := updateJobStopTime(job); err != nil {
+	if err := updateJobStopTime(job.Id); err != nil {
 		log.Errorf("Failed to update job stop time in db - id: %s - reason: %v", job.Id.Hex(), err)
 	}
 }
 
-func updateJobFailureReason(job *Job, reason string) (err error) {
+func updateJobFailureReason(id *primitive.ObjectID, reason string) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
-		bson.D{{"_id", job.Id}},
+		bson.D{{"_id", id}},
 		bson.D{{"$set", bson.D{{"failure", reason}}}})
 	return
 }
 
-func updateJobStopTime(job *Job) (err error) {
+func updateJobStopTime(id *primitive.ObjectID) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
-		bson.D{{"_id", job.Id}},
+		bson.D{{"_id", id}},
 		bson.D{{"$set", bson.D{{"stop", time.Now()}}}})
 	return
 }
