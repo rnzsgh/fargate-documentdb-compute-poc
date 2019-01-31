@@ -63,6 +63,5 @@ func TestUpdateTaskStopTime(t *testing.T) {
 				}
 			}
 		}
-
 	})
 }
