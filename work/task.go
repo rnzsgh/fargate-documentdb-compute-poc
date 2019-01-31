@@ -1,14 +1,17 @@
 package work
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/cloud"
+	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
 
 	log "github.com/golang/glog"
 )
@@ -118,6 +121,15 @@ func launchTask(task *Task) string {
 	}
 }
 
+func updateTaskFailureReason(task *Task, reason string) (err error) {
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
+		ctx,
+		bson.D{{"_id", task.JobId}},
+		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.failureReason", task.Id.Hex()), reason}}}})
+	return
+}
+
 func wait(count int64) int64 {
 	time.Sleep(time.Duration(count) * time.Second)
 	return count * int64(2)
@@ -126,7 +138,7 @@ func wait(count int64) int64 {
 type Task struct {
 	Id            *primitive.ObjectID `json:"id" bson:"id"`
 	JobId         *primitive.ObjectID `json:"jobId" bson:"jobId"`
-	FailureReason string              `json:"failureReason" bson:"failureReason"`
+	FailureReason string              `json:"failure" bson:"failure"`
 	Start         *time.Time          `json:"start" bson:"start"`
 	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
