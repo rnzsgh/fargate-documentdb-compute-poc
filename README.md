@@ -5,6 +5,8 @@ Note: You must have long arn format enabled for tags
 https://aws.amazon.com/ecs/faqs/#Transition_to_new_ARN_and_ID_format
 https://aws.amazon.com/blogs/compute/migrating-your-amazon-ecs-deployment-to-the-new-arn-and-resource-id-format-2/
 
+
+To test the job manager locally (this repo), set the following environment variables (must match your cluster):
 ```
 export DOCUMENT_DB_ENDPOINT=localhost
 export DOCUMENT_DB_PORT=27017
