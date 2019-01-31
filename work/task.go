@@ -132,7 +132,7 @@ func updateTaskFailureReason(task *Task, reason string) (err error) {
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
 		bson.D{{"_id", task.JobId}},
-		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.failureReason", task.Id.Hex()), reason}}}})
+		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.failure", task.Id.Hex()), reason}}}})
 	return
 }
 
@@ -141,7 +141,7 @@ func updateTaskStopTime(task *Task) (err error) {
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
 		bson.D{{"_id", task.JobId}},
-		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.stop", task.JobId.Hex()), task.Stop}}}})
+		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.stop", task.Id.Hex()), task.Stop}}}})
 	return
 }
 
