@@ -1,4 +1,4 @@
-package docdb
+package db
 
 import (
 	"context"
@@ -55,9 +55,13 @@ func init() {
 		log.Errorf("Unable to connect to db: %v", err)
 	}
 
-	err = Client.Ping(ctx, readpref.Primary())
-
-	if err != nil {
+	if err = ping(); err != nil {
 		log.Errorf("Unable to ping db: %v", err)
 	}
+}
+
+func ping() error {
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	return Client.Ping(ctx, readpref.Primary())
+
 }
