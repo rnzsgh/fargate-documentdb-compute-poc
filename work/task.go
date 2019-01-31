@@ -43,7 +43,9 @@ func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
 
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
-				// TODO: Update failure reason in db
+				if err := updateTaskFailureReason(task, *failure.Reason); err != nil {
+					log.Errorf("Could not task failure reason in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+				}
 				log.Errorf("Task failed - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), *failure.Reason)
 				task.FailureReason = *failure.Reason
 			}
@@ -55,12 +57,16 @@ func waitForTask(task *Task, taskArn string, completedChannel chan<- *Task) {
 				if lastStatus != nil && *lastStatus == "STOPPED" {
 					exitCode := container.ExitCode
 					if *exitCode != 0 {
-						// TODO: Update reason in database
 						task.FailureReason = fmt.Sprintf("Task did not have a zero exit code - %d", *exitCode)
+						if err := updateTaskFailureReason(task, task.FailureReason); err != nil {
+							log.Errorf("Could not task failure reason in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+						}
 					}
 
-					// TODO: Update stop time in database
 					task.Stop = submittedTask.StoppedAt
+					if err = updateTaskStopTime(task); err != nil {
+						log.Errorf("Unable to update task stop time in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+					}
 					log.Infof("Task stopped - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
 					completedChannel <- task
 					return
@@ -127,6 +133,15 @@ func updateTaskFailureReason(task *Task, reason string) (err error) {
 		ctx,
 		bson.D{{"_id", task.JobId}},
 		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.failureReason", task.Id.Hex()), reason}}}})
+	return
+}
+
+func updateTaskStopTime(task *Task) (err error) {
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
+		ctx,
+		bson.D{{"_id", task.JobId}},
+		bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.stop", task.JobId.Hex()), task.Stop}}}})
 	return
 }
 
