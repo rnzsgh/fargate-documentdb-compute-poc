@@ -9,13 +9,13 @@ import (
 
 var testJobId = primitive.NewObjectID()
 
-func TestCreateJob(t *testing.T) {
-	t.Run("TestCreateJob", func(t *testing.T) {
+func TestJobCreate(t *testing.T) {
+	t.Run("TestJobCreate", func(t *testing.T) {
 		now := time.Now()
-		if err := CreateJob(&Job{Id: &testJobId, Start: &now, Stop: &now}); err != nil {
+		if err := JobCreate(&Job{Id: &testJobId, Start: &now, Stop: &now}); err != nil {
 			t.Errorf("Problem creating job entry: %v", err)
 		} else {
-			if j, err := FindJobById(&testJobId); err != nil {
+			if j, err := JobFindById(&testJobId); err != nil {
 				t.Errorf("Cannot load job entry: %v", err)
 			} else if j == nil {
 				t.Error("Null job entry returned")
@@ -24,12 +24,12 @@ func TestCreateJob(t *testing.T) {
 	})
 }
 
-func TestUpdateJobFailureReason(t *testing.T) {
-	t.Run("TestUpdateJobFailureReason", func(t *testing.T) {
-		if err := UpdateJobFailureReason(&testJobId, "FAILED"); err != nil {
+func TestJobUpdateFailureReason(t *testing.T) {
+	t.Run("TestJobUpdateFailureReason", func(t *testing.T) {
+		if err := JobUpdateFailureReason(&testJobId, "FAILED"); err != nil {
 			t.Errorf("Problem updating job failure reason: %v", err)
 		} else {
-			if j, err := FindJobById(&testJobId); err != nil {
+			if j, err := JobFindById(&testJobId); err != nil {
 				t.Errorf("Cannot load job entry: %v", err)
 			} else {
 				if j.FailureReason != "FAILED" {
@@ -40,12 +40,12 @@ func TestUpdateJobFailureReason(t *testing.T) {
 	})
 }
 
-func TestUpdateJobStopTime(t *testing.T) {
-	t.Run("TestUpdateJobStopTime", func(t *testing.T) {
-		if err := UpdateJobStopTime(&testJobId); err != nil {
+func TestJobUpdateStopTime(t *testing.T) {
+	t.Run("TestJobUpdateStopTime", func(t *testing.T) {
+		if err := JobUpdateStopTime(&testJobId); err != nil {
 			t.Errorf("Problem updating job stop time: %v", err)
 		} else {
-			if j, err := FindJobById(&testJobId); err != nil {
+			if j, err := JobFindById(&testJobId); err != nil {
 				t.Errorf("Cannot load job entry: %v", err)
 			} else {
 				if j.Stop == nil {

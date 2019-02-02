@@ -12,27 +12,31 @@ var taskTestJobId = primitive.NewObjectID()
 var testJob *Job
 
 func TestCreateJobWithTasksEntry(t *testing.T) {
-	now := time.Now()
-	testJob = &Job{Id: &taskTestJobId, Start: &now, Stop: &now}
-	testJob.Tasks = make(map[string]*Task)
-	for i := 0; i < 2; i++ {
-		taskId := primitive.NewObjectID()
-		testJob.Tasks[taskId.Hex()] = &Task{Id: &taskId, JobId: &taskTestJobId}
-	}
-	if err := CreateJob(testJob); err != nil {
-		t.Errorf("Problem creating job entry for test task: %v", err)
-	}
+	t.Run("TestCreateJobWithTasksEntry", func(t *testing.T) {
+
+		now := time.Now()
+		testJob = &Job{Id: &taskTestJobId, Start: &now, Stop: &now}
+		testJob.Tasks = make(map[string]*Task)
+		for i := 0; i < 2; i++ {
+			taskId := primitive.NewObjectID()
+			testJob.Tasks[taskId.Hex()] = &Task{Id: &taskId, JobId: &taskTestJobId}
+		}
+		if err := JobCreate(testJob); err != nil {
+			t.Errorf("Problem creating job entry for test task: %v", err)
+		}
+
+	})
 }
 
-func TestUpdateTaskFailureReason(t *testing.T) {
-	t.Run("TestUpdateTaskFailureReason", func(t *testing.T) {
+func TestTaskUpdateFailureReason(t *testing.T) {
+	t.Run("TestTaskUpdateFailureReason", func(t *testing.T) {
 		for _, task := range testJob.Tasks {
-			if err := UpdateTaskFailureReason(task, "FAILED"); err != nil {
+			if err := TaskUpdateFailureReason(task, "FAILED"); err != nil {
 				t.Errorf("Problem updating task failure reason: %v", err)
 			}
 		}
 
-		if job, err := FindJobById(&taskTestJobId); err != nil {
+		if job, err := JobFindById(&taskTestJobId); err != nil {
 			t.Errorf("Cannot load job entry: %v", err)
 		} else {
 			for _, task := range job.Tasks {
@@ -44,17 +48,17 @@ func TestUpdateTaskFailureReason(t *testing.T) {
 	})
 }
 
-func TestUpdateTaskStopTime(t *testing.T) {
-	t.Run("TestUpdateTaskStopTime", func(t *testing.T) {
+func TestTaskUpdateStopTime(t *testing.T) {
+	t.Run("TestTaskUpdateStopTime", func(t *testing.T) {
 		for _, task := range testJob.Tasks {
 			now := time.Now()
 			task.Stop = &now
-			if err := UpdateTaskStopTime(task); err != nil {
+			if err := TaskUpdateStopTime(task); err != nil {
 				t.Errorf("Problem updating task stop time - reason: %v", err)
 			}
 		}
 
-		if job, err := FindJobById(&taskTestJobId); err != nil {
+		if job, err := JobFindById(&taskTestJobId); err != nil {
 			t.Errorf("Cannot load job entry: %v", err)
 		} else {
 			for _, task := range job.Tasks {

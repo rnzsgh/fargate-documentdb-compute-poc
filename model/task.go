@@ -18,7 +18,7 @@ type Task struct {
 	Stop          *time.Time          `json:"stop,omitempty" bson:"stop,omitempty"`
 }
 
-func UpdateTaskFailureReason(task *Task, reason string) (err error) {
+func TaskUpdateFailureReason(task *Task, reason string) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,
@@ -27,7 +27,7 @@ func UpdateTaskFailureReason(task *Task, reason string) (err error) {
 	return
 }
 
-func UpdateTaskStopTime(task *Task) (err error) {
+func TaskUpdateStopTime(task *Task) (err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err = docdb.Client.Database("work").Collection("jobs").UpdateOne(
 		ctx,

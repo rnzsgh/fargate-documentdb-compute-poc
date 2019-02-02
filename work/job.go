@@ -19,7 +19,7 @@ func processJobs(jobs <-chan *model.Job) {
 
 func processJob(job *model.Job) {
 
-	if err := model.CreateJob(job); err != nil {
+	if err := model.JobCreate(job); err != nil {
 		log.Errorf("Unable to create job entry: %v", err)
 		return
 	}
@@ -49,7 +49,7 @@ func processJob(job *model.Job) {
 
 	if len(job.FailureReason) > 0 {
 		log.Errorf("Job had a failure - id: %s - reason: %s", job.Id.Hex(), job.FailureReason)
-		if err := model.UpdateJobFailureReason(job.Id, job.FailureReason); err != nil {
+		if err := model.JobUpdateFailureReason(job.Id, job.FailureReason); err != nil {
 			log.Errorf("Job failed to update db failure reason - id: %s - reason: %v", job.Id.Hex(), err)
 		}
 	}
@@ -60,7 +60,7 @@ func processJob(job *model.Job) {
 		}
 	}
 
-	if err := model.UpdateJobStopTime(job.Id); err != nil {
+	if err := model.JobUpdateStopTime(job.Id); err != nil {
 		log.Errorf("Failed to update job stop time in db - id: %s - reason: %v", job.Id.Hex(), err)
 	}
 }
