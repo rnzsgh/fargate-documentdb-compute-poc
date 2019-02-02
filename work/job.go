@@ -9,6 +9,14 @@ var JobSubmitChannel = make(chan *model.Job)
 
 func init() {
 	go processJobs(JobSubmitChannel)
+
+	if jobs, err := model.JobFindRunning(); err != nil {
+		log.Errorf("Unable to load running jobs on start: %v", err)
+	} else {
+		for _, job := range jobs {
+			go processJob(job)
+		}
+	}
 }
 
 func processJobs(jobs <-chan *model.Job) {
@@ -34,9 +42,14 @@ func waitForTasksToComplete(taskCount int, completedTaskChannel chan *model.Task
 
 func processJob(job *model.Job) {
 
-	if err := model.JobCreate(job); err != nil {
-		log.Errorf("Unable to create job entry: %v", err)
+	if exists, err := model.JobExists(job.Id); err != nil {
+		log.Errorf("Unable to check if job exists: %v", err)
 		return
+	} else if !exists {
+		if err := model.JobCreate(job); err != nil {
+			log.Errorf("Unable to create job entry: %v", err)
+			return
+		}
 	}
 
 	completedTaskChannel := make(chan *model.Task)
@@ -47,7 +60,10 @@ func processJob(job *model.Job) {
 	}
 
 	waitForTasksToComplete(taskCount, completedTaskChannel)
+	jobCompleted(job)
+}
 
+func jobCompleted(job *model.Job) {
 	log.Infof("Job work completed - id: %s", job.Id.Hex())
 
 	if len(job.FailureReason) > 0 {

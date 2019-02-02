@@ -15,7 +15,11 @@ import (
 )
 
 func processTask(task *model.Task, completedChannel chan<- *model.Task) {
-	waitForTask(task, launchTask(task), completedChannel)
+	if len(task.Arn) == 0 {
+		task.Arn = launchTask(task)
+	}
+
+	waitForTask(task, task.Arn, completedChannel)
 }
 
 func waitForTask(task *model.Task, taskArn string, completedChannel chan<- *model.Task) {

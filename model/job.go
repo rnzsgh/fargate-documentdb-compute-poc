@@ -29,6 +29,19 @@ func JobCreate(job *Job) (err error) {
 	return
 }
 
+func JobExists(id *primitive.ObjectID) (bool, error) {
+	job, err := JobFindById(id)
+	if err != nil {
+		return false, err
+	}
+
+	if job != nil {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func JobFindById(id *primitive.ObjectID) (job *Job, err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	job = &Job{}
