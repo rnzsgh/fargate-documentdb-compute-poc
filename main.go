@@ -40,7 +40,7 @@ func main() {
 		now := time.Now()
 		job := &model.Job{Id: &jobId, Start: &now, Tasks: tasks}
 
-		work.SubmitJobChannel <- job
+		work.JobSubmitChannel <- job
 
 		response.Message = "Accepted"
 		w.WriteHeader(http.StatusAccepted)
@@ -72,7 +72,7 @@ func main() {
 	// This is a blocking call
 	http.ListenAndServe(":8080", nil)
 
-	close(work.SubmitJobChannel)
+	close(work.JobSubmitChannel)
 	log.Flush()
 }
 
