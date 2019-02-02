@@ -5,10 +5,10 @@ import (
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 )
 
-var SubmitJobChannel = make(chan *model.Job)
+var JobSubmitChannel = make(chan *model.Job)
 
 func init() {
-	go processJobs(SubmitJobChannel)
+	go processJobs(JobSubmitChannel)
 }
 
 func processJobs(jobs <-chan *model.Job) {
@@ -17,21 +17,7 @@ func processJobs(jobs <-chan *model.Job) {
 	}
 }
 
-func processJob(job *model.Job) {
-
-	if err := model.JobCreate(job); err != nil {
-		log.Errorf("Unable to create job entry: %v", err)
-		return
-	}
-
-	completedTaskChannel := make(chan *model.Task)
-
-	taskCount := len(job.Tasks)
-
-	for _, task := range job.Tasks {
-		go processTask(task, completedTaskChannel)
-	}
-
+func waitForTasksToComplete(taskCount int, completedTaskChannel chan *model.Task) {
 	count := 0
 
 	for {
@@ -44,6 +30,23 @@ func processJob(job *model.Job) {
 			break
 		}
 	}
+}
+
+func processJob(job *model.Job) {
+
+	if err := model.JobCreate(job); err != nil {
+		log.Errorf("Unable to create job entry: %v", err)
+		return
+	}
+
+	completedTaskChannel := make(chan *model.Task)
+	taskCount := len(job.Tasks)
+
+	for _, task := range job.Tasks {
+		go processTask(task, completedTaskChannel)
+	}
+
+	waitForTasksToComplete(taskCount, completedTaskChannel)
 
 	log.Infof("Job work completed - id: %s", job.Id.Hex())
 
@@ -51,12 +54,6 @@ func processJob(job *model.Job) {
 		log.Errorf("Job had a failure - id: %s - reason: %s", job.Id.Hex(), job.FailureReason)
 		if err := model.JobUpdateFailureReason(job.Id, job.FailureReason); err != nil {
 			log.Errorf("Job failed to update db failure reason - id: %s - reason: %v", job.Id.Hex(), err)
-		}
-	}
-
-	for _, task := range job.Tasks {
-		if len(task.FailureReason) > 0 {
-			log.Errorf("Job task had a failure - id: %s task: %s - reason: %s", job.Id.Hex(), task.Id.Hex(), job.FailureReason)
 		}
 	}
 
