@@ -42,9 +42,19 @@ func waitForTask(task *model.Task, taskArn string, completedChannel chan<- *mode
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
 				if err := model.TaskUpdateFailureReason(task, *failure.Reason); err != nil {
-					log.Errorf("Could not update task failure reason in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+					log.Errorf(
+						"Could not update task failure reason in db - job: %s - task: %s - reason %s",
+						task.JobId.Hex(),
+						task.Id.Hex(),
+						err,
+					)
 				}
-				log.Errorf("Task failed - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), *failure.Reason)
+				log.Errorf(
+					"Task failed - job: %s - task: %s - reason %s",
+					task.JobId.Hex(),
+					task.Id.Hex(),
+					*failure.Reason,
+				)
 				task.FailureReason = *failure.Reason
 			}
 		}
@@ -57,13 +67,23 @@ func waitForTask(task *model.Task, taskArn string, completedChannel chan<- *mode
 					if *exitCode != 0 {
 						task.FailureReason = fmt.Sprintf("Task did not have a zero exit code - %d", *exitCode)
 						if err := model.TaskUpdateFailureReason(task, task.FailureReason); err != nil {
-							log.Errorf("Could not task failure reason in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+							log.Errorf(
+								"Could not task failure reason in db - job: %s - task: %s - reason %s",
+								task.JobId.Hex(),
+								task.Id.Hex(),
+								err,
+							)
 						}
 					}
 
 					task.Stop = submittedTask.StoppedAt
 					if err = model.TaskUpdateStopTime(task); err != nil {
-						log.Errorf("Unable to update task stop time in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+						log.Errorf(
+							"Unable to update task stop time in db - job: %s - task: %s - reason %s",
+							task.JobId.Hex(),
+							task.Id.Hex(),
+							err,
+						)
 					}
 					log.Infof("Task stopped - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
 					completedChannel <- task
@@ -101,14 +121,24 @@ func launchTask(task *model.Task) string {
 		})
 
 		if err != nil {
-			log.Errorf("Task run error - job: %s, task: %s - error: %v", task.JobId.Hex(), task.Id.Hex(), err)
+			log.Errorf(
+				"Task run error - job: %s, task: %s - error: %v",
+				task.JobId.Hex(),
+				task.Id.Hex(),
+				err,
+			)
 			count = util.WaitSeconds(count)
 			continue
 		}
 
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
-				log.Errorf("Task run failed - job: %s - task: %s - reason: %s", task.JobId.Hex(), task.Id.Hex(), *failure)
+				log.Errorf(
+					"Task run failed - job: %s - task: %s - reason: %s",
+					task.JobId.Hex(),
+					task.Id.Hex(),
+					*failure,
+				)
 			}
 			count = util.WaitSeconds(count)
 			continue
@@ -118,6 +148,15 @@ func launchTask(task *model.Task) string {
 			for _, container := range submittedTask.Containers {
 				taskArn = container.TaskArn
 			}
+		}
+
+		if err := model.TaskUpdateArn(task, *taskArn); err != nil {
+			log.Errorf(
+				"Could not update task arn in db - job: %s - task: %s - reason %s",
+				task.JobId.Hex(),
+				task.Id.Hex(),
+				err,
+			)
 		}
 
 		log.Infof("Task launched - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
