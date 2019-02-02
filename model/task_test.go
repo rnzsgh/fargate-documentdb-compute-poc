@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/util"
 )
 
 var taskTestJobId = primitive.NewObjectID()
@@ -14,8 +15,8 @@ var testJob *Job
 func TestCreateJobWithTasksEntry(t *testing.T) {
 	t.Run("TestCreateJobWithTasksEntry", func(t *testing.T) {
 
-		now := time.Now()
-		testJob = &Job{Id: &taskTestJobId, Start: &now, Stop: &now}
+		now := util.NowTimeUtc()
+		testJob = &Job{Id: &taskTestJobId, Start: now, Stop: now}
 		testJob.Tasks = make(map[string]*Task)
 		for i := 0; i < 2; i++ {
 			taskId := primitive.NewObjectID()
@@ -73,8 +74,7 @@ func TestTaskUpdateArn(t *testing.T) {
 func TestTaskUpdateStopTime(t *testing.T) {
 	t.Run("TestTaskUpdateStopTime", func(t *testing.T) {
 		for _, task := range testJob.Tasks {
-			now := time.Now()
-			task.Stop = &now
+			task.Stop = util.NowTimeUtc()
 			if err := TaskUpdateStopTime(task); err != nil {
 				t.Errorf("Problem updating task stop time - reason: %v", err)
 			}
