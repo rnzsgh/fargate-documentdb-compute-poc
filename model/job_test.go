@@ -26,10 +26,10 @@ func TestJobCreate(t *testing.T) {
 		if err := JobCreate(&Job{Id: &testJobId, Start: &now}); err != nil {
 			t.Errorf("Problem creating job entry: %v", err)
 		} else {
-			if j, err := JobFindById(&testJobId); err != nil {
+			if exists, err := JobExists(&testJobId); err != nil {
 				t.Errorf("Cannot load job entry: %v", err)
-			} else if j == nil {
-				t.Error("Null job entry returned")
+			} else if !exists {
+				t.Errorf("Job not found in db - id: %s", testJobId.Hex())
 			}
 		}
 	})
