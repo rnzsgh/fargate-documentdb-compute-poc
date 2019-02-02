@@ -15,8 +15,6 @@ import (
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/work"
 )
 
-const taskCount = 10
-
 func main() {
 
 	flag.Parse()
@@ -32,7 +30,7 @@ func main() {
 		// Create an example job
 		jobId := primitive.NewObjectID()
 		tasks := make(map[string]*model.Task)
-		for i := 0; i < taskCount; i++ {
+		for i := 0; i < 11; i++ {
 			taskId := primitive.NewObjectID()
 			tasks[taskId.Hex()] = &model.Task{Id: &taskId, JobId: &jobId}
 		}
