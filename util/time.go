@@ -10,3 +10,8 @@ func WaitSeconds(seconds int64) int64 {
 	time.Sleep(time.Duration(seconds) * time.Second)
 	return seconds * int64(2)
 }
+
+func NowTimeUtc() *time.Time {
+	time := time.Now().UTC()
+	return &time
+}
