@@ -48,6 +48,28 @@ func TestTaskUpdateFailureReason(t *testing.T) {
 	})
 }
 
+func TestTaskUpdateArn(t *testing.T) {
+	t.Run("TestTaskUpdateArn", func(t *testing.T) {
+		for _, task := range testJob.Tasks {
+			now := time.Now()
+			task.Stop = &now
+			if err := TaskUpdateArn(task, "test"); err != nil {
+				t.Errorf("Problem updating task arn - reason: %v", err)
+			}
+		}
+
+		if job, err := JobFindById(&taskTestJobId); err != nil {
+			t.Errorf("Cannot load job entry: %v", err)
+		} else {
+			for _, task := range job.Tasks {
+				if len(task.Arn) == 0 {
+					t.Errorf("Failed to update the task arn")
+				}
+			}
+		}
+	})
+}
+
 func TestTaskUpdateStopTime(t *testing.T) {
 	t.Run("TestTaskUpdateStopTime", func(t *testing.T) {
 		for _, task := range testJob.Tasks {
