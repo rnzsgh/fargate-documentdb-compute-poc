@@ -42,7 +42,7 @@ func waitForTask(task *model.Task, taskArn string, completedChannel chan<- *mode
 		if len(response.Failures) > 0 {
 			for _, failure := range response.Failures {
 				if err := model.TaskUpdateFailureReason(task, *failure.Reason); err != nil {
-					log.Errorf("Could not task failure reason in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
+					log.Errorf("Could not update task failure reason in db - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), err)
 				}
 				log.Errorf("Task failed - job: %s - task: %s - reason %s", task.JobId.Hex(), task.Id.Hex(), *failure.Reason)
 				task.FailureReason = *failure.Reason
