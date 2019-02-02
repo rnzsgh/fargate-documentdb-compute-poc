@@ -1,17 +1,14 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
-	"io"
-	"net/http"
 	"os"
-	"strings"
-	"time"
+	"os/signal"
+	"syscall"
 
 	log "github.com/golang/glog"
-	"github.com/mongodb/mongo-go-driver/bson/primitive"
-	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/api"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/work"
 )
 
@@ -20,62 +17,23 @@ func main() {
 	flag.Parse()
 	flag.Lookup("logtostderr").Value.Set("true")
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "ok")
-	})
+	sigs := make(chan os.Signal, 1)
+	running := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
-		response := &response{}
+	srv := api.RunHttpServer()
 
-		// Create an example job
-		jobId := primitive.NewObjectID()
-		tasks := make(map[string]*model.Task)
-		for i := 0; i < 11; i++ {
-			taskId := primitive.NewObjectID()
-			tasks[taskId.Hex()] = &model.Task{Id: &taskId, JobId: &jobId}
-		}
+	go func() {
+		<-sigs
+		running <- false
+	}()
 
-		now := time.Now()
-		job := &model.Job{Id: &jobId, Start: &now, Tasks: tasks}
+	<-running
 
-		work.JobSubmitChannel <- job
-
-		response.Message = "Accepted"
-		w.WriteHeader(http.StatusAccepted)
-
-		response.Job = job
-
-		// Normally this would be application/json, but we don't want to prompt downloads
-		w.Header().Set("Content-Type", "text/plain")
-		out, _ := json.Marshal(response)
-		io.WriteString(w, string(out))
-	})
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		res := &response{Message: "Hello World"}
-
-		for _, e := range os.Environ() {
-			pair := strings.Split(e, "=")
-			res.EnvVars = append(res.EnvVars, pair[0]+"="+pair[1])
-		}
-		// Normally this would be application/json, but we don't want to prompt downloads
-		w.Header().Set("Content-Type", "text/plain")
-
-		out, _ := json.Marshal(res)
-		io.WriteString(w, string(out))
-	})
-
-	log.Info("Ready to process")
-
-	// This is a blocking call
-	http.ListenAndServe(":8080", nil)
+	if err := srv.Shutdown(context.TODO()); err != nil {
+		log.Errorf("Unable to shutdown http server: %v", err)
+	}
 
 	close(work.JobSubmitChannel)
 	log.Flush()
-}
-
-type response struct {
-	Message string     `json:"message"`
-	EnvVars []string   `json:"env"`
-	Job     *model.Job `json:"job,omitempty"`
 }
