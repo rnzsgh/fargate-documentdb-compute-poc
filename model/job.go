@@ -42,11 +42,15 @@ func JobExists(id *primitive.ObjectID) (bool, error) {
 	return false, nil
 }
 
-func JobFindById(id *primitive.ObjectID) (job *Job, err error) {
+func JobFindById(id *primitive.ObjectID) (*Job, error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	job = &Job{}
-	err = jobCollection().FindOne(ctx, bson.D{{"_id", id}}).Decode(job)
-	return
+	job := &Job{}
+
+	err := jobCollection().FindOne(ctx, bson.D{{"_id", id}}).Decode(job)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return job, err
 }
 
 // Called when the server starts to load currently running jobs
