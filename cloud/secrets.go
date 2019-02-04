@@ -1,6 +1,8 @@
 package cloud
 
 import (
+	"crypto/tls"
+	"net/http"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -38,7 +40,11 @@ func init() {
 
 func loadSecret(secretName string) (string, error) {
 
-	svc := secretsmanager.New(session.New())
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+	svc := secretsmanager.New(session.New(), &aws.Config{HTTPClient: client})
 	if result, err := svc.GetSecretValue(&secretsmanager.GetSecretValueInput{
 		SecretId:     aws.String(secretName),
 		VersionStage: aws.String("AWSCURRENT"),
