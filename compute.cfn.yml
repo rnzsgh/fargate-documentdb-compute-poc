@@ -575,7 +575,7 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-region: !Ref AWS::Region
-              awslogs-group: !Ref LogGroupWorker
+              awslogs-group: !Ref LogGroup
               awslogs-stream-prefix: !Ref GitSourceRepo
 
   FargateTaskDefinitionWorker:
@@ -607,7 +607,7 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-region: !Ref AWS::Region
-              awslogs-group: !Ref LogGroup
+              awslogs-group: !Ref LogGroupWorker
               awslogs-stream-prefix: !Ref GitSourceRepo
 
   TaskExecutionRole:
