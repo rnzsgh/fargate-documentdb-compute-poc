@@ -3,8 +3,6 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Description: Fargate Compute Example with DocumentDB
 
-# TODO: Once finished, make pipelines depend on DB
-
 Parameters:
 
   VpcId:
@@ -410,6 +408,8 @@ Resources:
       - CodeBuildProject
       - CodePipelineServiceRole
       - FargateService
+      - DocumentDbInstance0
+      - DocumentDbInstance1
 
   CodePipelineWorkerGitHub:
     Type: AWS::CodePipeline::Pipeline
@@ -454,6 +454,8 @@ Resources:
       - CodePipelineWorkerArtifactBucket
       - CodeBuildProjectWorker
       - CodePipelineServiceRole
+      - DocumentDbInstance0
+      - DocumentDbInstance1
 
   LogGroup:
     Type: AWS::Logs::LogGroup
