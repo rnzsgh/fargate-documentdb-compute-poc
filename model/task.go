@@ -16,6 +16,7 @@ type Task struct {
 	Id            *primitive.ObjectID `json:"id" bson:"id"`
 	JobId         *primitive.ObjectID `json:"jobId" bson:"jobId"`
 	FailureReason string              `json:"failure" bson:"failure"`
+	DataId        *primitive.ObjectID `json:"dataId" bson:"dataId"`
 	Arn           string              `json:"arn" bson:"arn"`
 	Start         *time.Time          `json:"start" bson:"start"`
 	Stop          *time.Time          `json:"stop" bson:"stop"`
