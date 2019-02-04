@@ -33,7 +33,7 @@ func init() {
 		log.Errorf("Cannot load secret: %s - problem: %v", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"), err)
 	}
 
-	log.Info("Secrets password: %s", Secrets.DatabasePassword)
+	log.Infof("Secrets password: %s", Secrets.DatabasePassword)
 }
 
 func loadSecret(secretName string) (string, error) {
