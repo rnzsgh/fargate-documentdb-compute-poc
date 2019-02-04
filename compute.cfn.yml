@@ -499,6 +499,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:DescribeSecret
+                  - secretsmanager:GetSecretValue
                 Resource: !Ref DatabasePasswordSecret
 
   TaskRoleWorker:
@@ -520,6 +521,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:DescribeSecret
+                  - secretsmanager:GetSecretValue
                 Resource: !Ref DatabasePasswordSecret
 
   FargateTaskDefinition:
@@ -609,6 +611,12 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-group: !Ref LogGroupWorker
               awslogs-stream-prefix: !Ref GitSourceRepo
+
+
+  # TODO
+  #SecretsManagerVpcEndpoint:
+  #Type: AWS::EC2::VPCEndpoint
+  #Properties:
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
