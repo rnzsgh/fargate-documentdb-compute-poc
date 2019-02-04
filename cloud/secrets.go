@@ -27,6 +27,8 @@ func init() {
 		return
 	}
 
+	log.Infof("Secrets name %s", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"))
+
 	if databasePassword, err := loadSecret(os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME")); err == nil {
 		Secrets.DatabasePassword = databasePassword
 	} else {
@@ -47,6 +49,8 @@ func loadSecret(secretName string) (string, error) {
 	if err != nil {
 		return "", nil
 	}
+
+	log.Infof("Result returned: %v", result)
 
 	return *result.SecretString, nil
 }
