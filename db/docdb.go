@@ -19,6 +19,8 @@ var Client *mongo.Client
 
 func init() {
 
+	log.Info("Initializing new connection")
+
 	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
 	port := os.Getenv("DOCUMENT_DB_PORT")
 	user := os.Getenv("DOCUMENT_DB_USER")
@@ -26,7 +28,7 @@ func init() {
 
 	password := cloud.Secrets.DatabasePassword
 
-	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/test?ssl=true", user, password, endpoint, port)
+	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/work?ssl=true", user, password, endpoint, port)
 
 	if len(os.Getenv("DOCUMENT_DB_LOCAL")) == 0 {
 		connectionUri = connectionUri + "&replicaSet=rs0"

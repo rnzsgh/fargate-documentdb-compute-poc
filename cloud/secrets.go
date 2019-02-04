@@ -17,6 +17,8 @@ var Secrets *AppSecrets
 
 func init() {
 
+	log.Info("Calling init on secrets")
+
 	Secrets = &AppSecrets{}
 
 	// Get from a local env var or pull from secrets manager
@@ -30,6 +32,8 @@ func init() {
 	} else {
 		log.Errorf("Cannot load secret: %s - problem: %v", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"), err)
 	}
+
+	log.Info("Secrets password: %s", Secrets.DatabasePassword)
 }
 
 func loadSecret(secretName string) (string, error) {
