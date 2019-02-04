@@ -28,13 +28,11 @@ func init() {
 	}
 
 	log.Infof("Secrets name %s", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"))
-
 	if databasePassword, err := loadSecret(os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME")); err == nil {
 		Secrets.DatabasePassword = databasePassword
 	} else {
 		log.Errorf("Cannot load secret: %s - problem: %v", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"), err)
 	}
-
 	log.Infof("Secrets password: %s", Secrets.DatabasePassword)
 }
 
