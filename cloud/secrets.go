@@ -45,7 +45,7 @@ func loadSecret(secretName string) (string, error) {
 	})
 
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	log.Infof("Result returned: %v", result)
