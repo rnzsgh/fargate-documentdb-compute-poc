@@ -557,6 +557,8 @@ Resources:
               Value: !GetAtt TaskExecutionRole.Arn
             - Name: TASK_DEFINITION_FAMILY_WORKER
               Value: !Sub ${AWS::StackName}-worker
+            - Name: CONTAINER_NAME
+              Value: !Ref GitSourceRepoWorker
             - Name: SUBNET_0
               Value: !Ref SubnetId0
             - Name: SUBNET_1
