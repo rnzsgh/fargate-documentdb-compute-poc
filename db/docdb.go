@@ -34,6 +34,8 @@ func init() {
 		connectionUri = connectionUri + "&replicaSet=rs0"
 	}
 
+	log.Info(connectionUri)
+
 	var err error
 	Client, err = mongo.NewClientWithOptions(
 		connectionUri,
