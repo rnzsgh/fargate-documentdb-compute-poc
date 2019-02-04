@@ -14,6 +14,7 @@ export DOCUMENT_DB_USER=test
 export DOCUMENT_DB_PASSWORD=test
 export AWS_REGION=us-east-1
 export CLUSTER_NAME=compute-0
+export CONTAINER_NAME=fargate-documentdb-compute-poc-worker
 export TASK_DEFINITION_FAMILY_WORKER=compute-0-worker
 export SUBNET_0=subnet-31e8660d
 export SUBNET_1=subnet-4b642f66
