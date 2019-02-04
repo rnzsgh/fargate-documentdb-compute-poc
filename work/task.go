@@ -107,6 +107,17 @@ func launchTask(task *model.Task) string {
 			Count:                aws.Int64(1),
 			EnableECSManagedTags: aws.Bool(true),
 			LaunchType:           aws.String("FARGATE"),
+			Overrides: &ecs.TaskOverride{
+				ContainerOverrides: []*ecs.ContainerOverride{{
+					Environment: []*ecs.KeyValuePair{
+						&ecs.KeyValuePair{
+							Name:  aws.String("DATA_ID"),
+							Value: aws.String(task.DataId.Hex()),
+						},
+					},
+					Name: aws.String(os.Getenv("CONTAINER_NAME")),
+				}},
+			},
 			NetworkConfiguration: &ecs.NetworkConfiguration{
 				AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
 					SecurityGroups: cloud.Ecs.TaskSecurityGroupIds,
