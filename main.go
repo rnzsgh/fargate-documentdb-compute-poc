@@ -12,10 +12,12 @@ import (
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/work"
 )
 
-func main() {
-
+func init() {
 	flag.Parse()
 	flag.Lookup("logtostderr").Value.Set("true")
+}
+
+func main() {
 
 	sigs := make(chan os.Signal, 1)
 	running := make(chan bool, 1)
