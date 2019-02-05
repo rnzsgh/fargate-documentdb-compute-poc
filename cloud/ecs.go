@@ -1,6 +1,8 @@
 package cloud
 
 import (
+	"crypto/tls"
+	"net/http"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -18,7 +20,16 @@ type EcsCluster struct {
 var Ecs *EcsCluster
 
 func (e *EcsCluster) Client() *ecs.ECS {
-	return ecs.New(session.Must(session.NewSession()), aws.NewConfig().WithRegion(os.Getenv("AWS_REGION")))
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+	return ecs.New(
+		session.Must(session.NewSession()),
+		aws.NewConfig().WithRegion(os.Getenv("AWS_REGION")),
+		&aws.Config{HTTPClient: client},
+	)
 }
 
 func init() {
