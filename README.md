@@ -1,6 +1,6 @@
 # Overview
 
-The purpose of this [POC](https://en.wikipedia.org/wiki/Proof_of_concept) is to showcase using [Amazon DocumentDB (with MongoDB compatibility)](https://aws.amazon.com/documentdb/) with [AWS Fargate](https://aws.amazon.com/fargate/) to peform batch compute operations on data persisted in the database.
+The purpose of this [POC](https://en.wikipedia.org/wiki/Proof_of_concept) is to showcase using [Amazon DocumentDB (with MongoDB compatibility)](https://aws.amazon.com/documentdb/) with [AWS Fargate](https://aws.amazon.com/fargate/) to perform batch compute operations on data persisted in the database.
 
 **Note:** You must have the new [ARN format and resource ID format](https://aws.amazon.com/ecs/faqs/#Transition_to_new_ARN_and_ID_format) enabled befor launching the [AWS CloudFormation](https://aws.amazon.com/cloudformation/) template below in order to support tags ([blog post](https://aws.amazon.com/blogs/compute/migrating-your-amazon-ecs-deployment-to-the-new-arn-and-resource-id-format-2/)).
 
