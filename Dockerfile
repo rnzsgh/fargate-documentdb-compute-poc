@@ -15,6 +15,7 @@ FROM scratch
 COPY --from=builder /go/src/github.com/fargate-documentdb-compute-poc/main /main
 COPY --from=builder /go/src/github.com/fargate-documentdb-compute-poc/rds-combined-ca-bundle.pem /rds-combined-ca-bundle.pem
 COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
 USER app
 
 EXPOSE 80
