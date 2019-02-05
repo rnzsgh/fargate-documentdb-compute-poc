@@ -20,7 +20,7 @@ func init() {
 	Secrets = &AppSecrets{}
 
 	// Get from a local env var or pull from secrets manager
-	if len(os.Getenv("DOCUMENT_DB_LOCAL")) > 0 {
+	if len(os.Getenv("LOCAL")) > 0 {
 		Secrets.DatabasePassword = os.Getenv("DOCUMENT_DB_PASSWORD")
 		return
 	}

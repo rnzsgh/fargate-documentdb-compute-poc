@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -31,4 +32,20 @@ func init() {
 		TaskSecurityGroupIds: []*string{aws.String(os.Getenv("APP_SECURITY_GROUP_ID"))},
 		WorkerTaskFamily:     aws.String(os.Getenv("TASK_DEFINITION_FAMILY_WORKER")),
 	}
+}
+
+func EscLongArnRoleWorkaround() error {
+	if len(os.Getenv("LOCAL")) == 0 {
+		return nil
+	}
+	if _, err := Ecs.Client().PutAccountSetting(
+		&ecs.PutAccountSettingInput{
+			Name:  aws.String("taskLongArnFormat"),
+			Value: aws.String("enabled"),
+		},
+	); err != nil {
+		return fmt.Errorf("Problem adding task long arn format setting - reason: %v", err)
+	}
+
+	return nil
 }
