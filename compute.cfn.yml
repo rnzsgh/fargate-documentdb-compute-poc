@@ -490,6 +490,14 @@ Resources:
                   ArnEquals:
                     ecs:cluster: !GetAtt FargateEcsCluster.Arn
                 Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${AWS::StackName}-worker
+        - PolicyName: account-setting-task
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:PutAccountSetting
+                Resource: '*'
         - PolicyName: pass-role
           PolicyDocument:
             Version: 2012-10-17
@@ -498,7 +506,9 @@ Resources:
                 Action:
                   - iam:PassRole
                   - iam:GetRole
-                Resource: !GetAtt TaskRoleWorker.Arn
+                Resource:
+                  - !GetAtt TaskRoleWorker.Arn
+                  - !GetAtt TaskExecutionRole.Arn
         - PolicyName: describe-list-task
           PolicyDocument:
             Version: 2012-10-17
