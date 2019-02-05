@@ -18,7 +18,7 @@ export SUBNET_0=subnet-31e8660d
 export SUBNET_1=subnet-4b642f66
 export APP_SECURITY_GROUP_ID=sg-088596b48d1eded7c
 export DOCUMENT_DB_PEM=/FULL_PATH/fargate-documentdb-compute-poc/local.pem
-export DOCUMENT_DB_LOCAL=true
+export LOCAL=true
 export STACK_NAME=compute-0
 ```
 
