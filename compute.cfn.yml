@@ -486,12 +486,31 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecs:RunTask
-                  - ecs:List*
-                  - ecs:Describe*
                 Condition:
                   ArnEquals:
                     ecs:cluster: !GetAtt FargateEcsCluster.Arn
-                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${AWS::StackName}-worker:*
+                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${AWS::StackName}-worker
+        - PolicyName: pass-role
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                  - iam:GetRole
+                Resource: !GetAtt TaskRoleWorker.Arn
+        - PolicyName: describe-list-task
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:ListTasks
+                  - ecs:DescribeTask
+                Condition:
+                  ArnEquals:
+                    ecs:cluster: !GetAtt FargateEcsCluster.Arn
+                Resource: '*'
         - PolicyName: get-secret
           PolicyDocument:
             Version: 2012-10-17
