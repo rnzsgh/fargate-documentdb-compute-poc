@@ -515,8 +515,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - ecs:ListTasks
-                  - ecs:DescribeTask
+                  - ecs:DescribeTasks
                 Condition:
                   ArnEquals:
                     ecs:cluster: !GetAtt FargateEcsCluster.Arn
