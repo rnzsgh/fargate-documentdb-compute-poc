@@ -500,6 +500,9 @@ Resources:
                 Action:
                   - secretsmanager:DescribeSecret
                   - secretsmanager:GetSecretValue
+                Condition:
+                  ForAnyValue:StringLike:
+                    secretsmanager:VersionStage: AWSCURRENT
                 Resource: !Ref DatabasePasswordSecret
 
   TaskRoleWorker:
@@ -522,6 +525,9 @@ Resources:
                 Action:
                   - secretsmanager:DescribeSecret
                   - secretsmanager:GetSecretValue
+                Condition:
+                  ForAnyValue:StringLike:
+                    secretsmanager:VersionStage: AWSCURRENT
                 Resource: !Ref DatabasePasswordSecret
 
   FargateTaskDefinition:
@@ -550,7 +556,7 @@ Resources:
             - Name: DOCUMENT_DB_USER
               Value: !Ref DatabaseUser
             - Name: DOCUMENT_DB_PASSWORD_SECRET_NAME
-              Value: !Sub ${AWS::AccountId}-DatabasePassword
+              Value: !Sub ${AWS::StackName}-DatabasePassword
             - Name: AWS_ACCOUNT_ID
               Value: !Ref AWS::AccountId
             - Name: AWS_REGION
@@ -600,7 +606,7 @@ Resources:
             - Name: DOCUMENT_DB_PORT
               Value: !GetAtt DocumentDbCluster.Port
             - Name: DOCUMENT_DB_PASSWORD_SECRET_NAME
-              Value: !Sub ${AWS::AccountId}-DatabasePassword
+              Value: !Sub ${AWS::StackName}-DatabasePassword
             - Name: DOCUMENT_DB_USER
               Value: !Ref DatabaseUser
             - Name: AWS_REGION
@@ -613,10 +619,31 @@ Resources:
               awslogs-stream-prefix: !Ref GitSourceRepo
 
 
-  # TODO
-  #SecretsManagerVpcEndpoint:
-  #Type: AWS::EC2::VPCEndpoint
-  #Properties:
+  SecretsManagerVpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Secrets Manager Vpc Endpoint security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - SourceSecurityGroupId: !Ref AppSecurityGroup
+        IpProtocol: tcp
+        ToPort: 443
+        FromPort: 443
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-SecretsManagerVpcEndpointSecurityGroup
+
+  SecretsManagerVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref SubnetId0
+        - !Ref SubnetId1
+      SecurityGroupIds:
+        - !GetAtt SecretsManagerVpcEndpointSecurityGroup.GroupId
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
