@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	log "github.com/golang/glog"
 )
 
 type EcsCluster struct {
@@ -35,19 +34,19 @@ func init() {
 	}
 }
 
+// This is a workaround to enable long ARN support for roles.
 func EscLongArnRoleWorkaround() error {
 	if len(os.Getenv("LOCAL")) > 0 {
 		return nil
 	}
-	if out, err := Ecs.Client().PutAccountSetting(
+
+	if _, err := Ecs.Client().PutAccountSetting(
 		&ecs.PutAccountSettingInput{
 			Name:  aws.String("taskLongArnFormat"),
 			Value: aws.String("enabled"),
 		},
 	); err != nil {
 		return fmt.Errorf("Problem adding task long arn format setting - reason: %v", err)
-	} else {
-		log.Infof("Put account setting response: %v", out)
 	}
 
 	return nil
