@@ -19,8 +19,6 @@ var Client *mongo.Client
 
 func init() {
 
-	log.Info("Initializing new connection")
-
 	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
 	port := os.Getenv("DOCUMENT_DB_PORT")
 	user := os.Getenv("DOCUMENT_DB_USER")
@@ -33,8 +31,6 @@ func init() {
 	if len(os.Getenv("DOCUMENT_DB_LOCAL")) == 0 {
 		connectionUri = connectionUri + "&replicaSet=rs0"
 	}
-
-	log.Info(connectionUri)
 
 	var err error
 	Client, err = mongo.NewClientWithOptions(
