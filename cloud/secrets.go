@@ -19,8 +19,6 @@ var Secrets *AppSecrets
 
 func init() {
 
-	log.Info("Calling init on secrets")
-
 	Secrets = &AppSecrets{}
 
 	// Get from a local env var or pull from secrets manager
@@ -29,13 +27,11 @@ func init() {
 		return
 	}
 
-	log.Infof("Secrets name %s", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"))
 	if databasePassword, err := loadSecret(os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME")); err == nil {
 		Secrets.DatabasePassword = databasePassword
 	} else {
 		log.Errorf("Cannot load secret: %s - problem: %v", os.Getenv("DOCUMENT_DB_PASSWORD_SECRET_NAME"), err)
 	}
-	log.Infof("Secrets password: %s", Secrets.DatabasePassword)
 }
 
 func loadSecret(secretName string) (string, error) {
@@ -51,7 +47,6 @@ func loadSecret(secretName string) (string, error) {
 	}); err != nil {
 		return "", err
 	} else {
-		log.Infof("Result returned: %v", result)
 		return *result.SecretString, nil
 	}
 }
