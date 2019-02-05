@@ -28,7 +28,7 @@ func init() {
 
 	connectionUri := fmt.Sprintf("mongodb://%s:%s@%s:%s/work?ssl=true", user, password, endpoint, port)
 
-	if len(os.Getenv("DOCUMENT_DB_LOCAL")) == 0 {
+	if len(os.Getenv("LOCAL")) == 0 {
 		connectionUri = connectionUri + "&replicaSet=rs0"
 	}
 

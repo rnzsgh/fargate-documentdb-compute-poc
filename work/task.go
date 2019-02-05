@@ -16,7 +16,10 @@ import (
 
 func processTask(task *model.Task, completedChannel chan<- *model.Task) {
 	if len(task.Arn) == 0 {
-		task.Arn = launchTask(task)
+		var err error
+		if task.Arn, err = launchTask(task); err != nil {
+			log.Errorf("Unable to launch task - reason: %v", err)
+		}
 	}
 
 	waitForTask(task, task.Arn, completedChannel)
@@ -98,7 +101,11 @@ func waitForTask(task *model.Task, taskArn string, completedChannel chan<- *mode
 	}
 }
 
-func launchTask(task *model.Task) string {
+func launchTask(task *model.Task) (string, error) {
+	if err := cloud.EscLongArnRoleWorkaround(); err != nil {
+		return "", err
+	}
+
 	count := int64(1)
 	var taskArn *string
 	for {
@@ -175,6 +182,6 @@ func launchTask(task *model.Task) string {
 		}
 
 		log.Infof("Task launched - job: %s, task: %s", task.JobId.Hex(), task.Id.Hex())
-		return *taskArn
+		return *taskArn, nil
 	}
 }
