@@ -51,7 +51,7 @@ func ecsLongArnRoleWorkaround() error {
 			Value: aws.String("enabled"),
 		},
 	); err != nil {
-		return fmt.Errorf("Problem adding task long arn format setting - reason: %v", err)
+		return fmt.Errorf("Problem adding task long arn format setting for current role - reason: %v", err)
 	}
 
 	return nil
