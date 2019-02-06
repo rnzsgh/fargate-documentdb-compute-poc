@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
+	log "github.com/golang/glog"
 )
 
 type EcsCluster struct {
@@ -32,10 +33,14 @@ func init() {
 		TaskSecurityGroupIds: []*string{aws.String(os.Getenv("APP_SECURITY_GROUP_ID"))},
 		WorkerTaskFamily:     aws.String(os.Getenv("TASK_DEFINITION_FAMILY_WORKER")),
 	}
+
+	if err := ecsLongArnRoleWorkaround(); err != nil {
+		log.Error(err)
+	}
 }
 
 // This is a workaround to enable long ARN support for roles.
-func EscLongArnRoleWorkaround() error {
+func ecsLongArnRoleWorkaround() error {
 	if len(os.Getenv("LOCAL")) > 0 {
 		return nil
 	}
