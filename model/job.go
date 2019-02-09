@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/golang/glog"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
@@ -46,11 +45,19 @@ func JobFindById(id *primitive.ObjectID) (*Job, error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	job := &Job{}
 
-	err := jobCollection().FindOne(ctx, bson.D{{"_id", id}}).Decode(job)
-	if err == mongo.ErrNoDocuments {
-		return nil, nil
+	if err := docdb.FindById(
+		ctx,
+		jobCollection(),
+		id,
+		job,
+	); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("Unable to find job by id: %s - reason: %v", id.Hex(), err)
 	}
-	return job, err
+
+	return job, nil
 }
 
 // Called when the server starts to load currently running jobs
@@ -92,38 +99,13 @@ func JobUpdateStopTime(id *primitive.ObjectID) error {
 }
 
 func jobUpdateField(id *primitive.ObjectID, field string, value interface{}) error {
-	count := 0
-
-	for {
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-		res, err := jobCollection().UpdateOne(
-			ctx,
-			bson.D{{"_id", id}},
-			bson.D{{"$set", bson.D{{field, value}}}})
-
-		if err == nil {
-			if res.MatchedCount != 1 && res.ModifiedCount != 1 {
-				return fmt.Errorf(
-					"Job field not updated - job: %s - field: %s",
-					id.Hex(),
-					field,
-				)
-			}
-			return nil
-		}
-
-		log.Errorf(
-			"Job field not updated - job: %s - field: %s - reason %v",
-			id.Hex(),
-			field,
-			err,
-		)
-
-		count++
-
-		time.Sleep(time.Duration(count*2) * time.Second)
-		if count == jobMaxFailureRetry {
-			return err
-		}
-	}
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	return docdb.UpdateOneFieldById(
+		ctx,
+		jobCollection(),
+		id,
+		field,
+		value,
+		jobMaxFailureRetry,
+	)
 }
