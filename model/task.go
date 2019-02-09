@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/golang/glog"
-	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
+	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
 )
 
 const taskMaxFailureRetry = 3
@@ -35,41 +34,13 @@ func TaskUpdateStopTime(task *Task) error {
 }
 
 func taskUpdateField(task *Task, field string, value interface{}) error {
-
-	count := 0
-
-	for {
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-		res, err := jobCollection().UpdateOne(
-			ctx,
-			bson.D{{"_id", task.JobId}},
-			bson.D{{"$set", bson.D{{fmt.Sprintf("tasks.%s.%s", task.Id.Hex(), field), value}}}})
-
-		if err == nil {
-			if res.MatchedCount != 1 && res.ModifiedCount != 1 {
-				return fmt.Errorf(
-					"Task field not updated - job: %s - task %s - field: %s",
-					task.JobId.Hex(),
-					task.Id.Hex(),
-					field,
-				)
-			}
-			return nil
-		}
-
-		log.Errorf(
-			"Task field not updated - job: %s - task %s - field: %s - reason %v",
-			task.JobId.Hex(),
-			task.Id.Hex(),
-			field,
-			err,
-		)
-
-		count++
-
-		time.Sleep(time.Duration(count*2) * time.Second)
-		if count == taskMaxFailureRetry {
-			return err
-		}
-	}
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	return docdb.UpdateOneFieldById(
+		ctx,
+		jobCollection(),
+		task.Id,
+		fmt.Sprintf("tasks.%s.%s", task.Id.Hex(), field),
+		value,
+		taskMaxFailureRetry,
+	)
 }
