@@ -25,7 +25,18 @@ type Data struct {
 	Results [][]float32         `json:"results" bson:"results"`
 }
 
+type DataRaw struct {
+	Id      *primitive.ObjectID `json:"id" bson:"_id"`
+	X       []byte              `json:"x" bson:"x"`
+	W       []byte              `json:"w" bson:"w"`
+	Results []byte              `json:"results" bson:"results"`
+}
+
 func DataEnsureTest() error {
+
+	if err := DataDeleteAll(); err != nil {
+		return fmt.Errorf("Unable to delete all data - reason: %v", err)
+	}
 
 	if count, err := DataCount(); err != nil {
 		return err
@@ -59,6 +70,28 @@ func DataEnsureTest() error {
 	return nil
 }
 
+func dataConvertToRaw(data *Data) (*DataRaw, error) {
+
+	//const dataTestItems = 2500
+	//const dataTestItemsInner = 200
+
+	/*
+
+		bx := bytes.NewBuffer(make([]byte, (dataTestItems * dataTestItemsInner * 4)))
+		bw := bytes.NewBuffer(make([]byte, (dataTestItems * dataTestItemsInner * 4)))
+
+		//bytes
+
+		for i0 := 0; i0 < dataTestItems; i0++ {
+			for i1 := 0; i1 < dataTestItemsInner; i1++ {
+
+			}
+		}
+	*/
+
+	return nil, nil
+}
+
 func DataCount() (count int64, err error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	count, err = dataCollection().Count(ctx, bson.D{})
@@ -87,6 +120,12 @@ func DataFindAllIds() ([]*primitive.ObjectID, error) {
 	}
 
 	return ids, nil
+}
+
+func DataDeleteAll() (err error) {
+	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
+	_, err = dataCollection().DeleteMany(ctx, bson.D{})
+	return
 }
 
 func DataCreate(data *Data) (err error) {

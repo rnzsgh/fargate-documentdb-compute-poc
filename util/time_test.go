@@ -4,25 +4,25 @@ import (
 	"testing"
 )
 
-func TestNowTimeUtc(t *testing.T) {
-	t.Run("TestNowTimeUtc", func(t *testing.T) {
-		if NowTimeUtc() == nil {
+func TestTimeNowUtc(t *testing.T) {
+	t.Run("TestTimeNowUtc", func(t *testing.T) {
+		if TimeNowUtc() == nil {
 			t.Errorf("Now time in utc did not return a value")
 		}
 	})
 }
 
-func TestWaitSeconds(t *testing.T) {
-	t.Run("TestWaitSeconds", func(t *testing.T) {
+func TestTimeWaitSeconds(t *testing.T) {
+	t.Run("TestTimeWaitSeconds", func(t *testing.T) {
 
 		completed := make(chan bool)
 
-		t0 := NowTimeUtc()
+		t0 := TimeNowUtc()
 
 		var next int64
 
 		go func() {
-			next = WaitSeconds(1)
+			next = TimeWaitSeconds(1)
 			completed <- true
 		}()
 
@@ -30,7 +30,7 @@ func TestWaitSeconds(t *testing.T) {
 
 			select {
 			case _ = <-completed:
-				t1 := NowTimeUtc()
+				t1 := TimeNowUtc()
 				if t1.Sub(*t0) < 1 {
 					t.Errorf("Wait time in seconds did not sleep long enough")
 				}

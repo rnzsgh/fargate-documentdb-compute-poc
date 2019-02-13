@@ -14,8 +14,7 @@ var testJob *Job
 
 func TestCreateJobWithTasksEntry(t *testing.T) {
 	t.Run("TestCreateJobWithTasksEntry", func(t *testing.T) {
-
-		now := util.NowTimeUtc()
+		now := util.TimeNowUtc()
 		testJob = &Job{Id: &taskTestJobId, Start: now, Stop: now}
 		testJob.Tasks = make(map[string]*Task)
 		for i := 0; i < 2; i++ {
@@ -74,7 +73,7 @@ func TestTaskUpdateArn(t *testing.T) {
 func TestTaskUpdateStopTime(t *testing.T) {
 	t.Run("TestTaskUpdateStopTime", func(t *testing.T) {
 		for _, task := range testJob.Tasks {
-			task.Stop = util.NowTimeUtc()
+			task.Stop = util.TimeNowUtc()
 			if err := TaskUpdateStopTime(task); err != nil {
 				t.Errorf("Problem updating task stop time - reason: %v", err)
 			}

@@ -145,7 +145,7 @@ func launchTask(task *model.Task) (string, error) {
 				task.Id.Hex(),
 				err,
 			)
-			count = util.WaitSeconds(count)
+			count = util.TimeWaitSeconds(count)
 			continue
 		}
 
@@ -158,7 +158,7 @@ func launchTask(task *model.Task) (string, error) {
 					*failure,
 				)
 			}
-			count = util.WaitSeconds(count)
+			count = util.TimeWaitSeconds(count)
 			continue
 		}
 

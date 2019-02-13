@@ -95,7 +95,7 @@ func JobUpdateFailureReason(id *primitive.ObjectID, reason string) error {
 }
 
 func JobUpdateStopTime(id *primitive.ObjectID) error {
-	return jobUpdateField(id, "stop", util.NowTimeUtc())
+	return jobUpdateField(id, "stop", util.TimeNowUtc())
 }
 
 func jobUpdateField(id *primitive.ObjectID, field string, value interface{}) error {

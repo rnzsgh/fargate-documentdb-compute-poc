@@ -38,7 +38,7 @@ func taskUpdateField(task *Task, field string, value interface{}) error {
 	return docdb.UpdateOneFieldById(
 		ctx,
 		jobCollection(),
-		task.Id,
+		task.JobId,
 		fmt.Sprintf("tasks.%s.%s", task.Id.Hex(), field),
 		value,
 		taskMaxFailureRetry,
