@@ -13,10 +13,11 @@ import (
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/mongo/options"
-	"github.com/mongodb/mongo-go-driver/mongo/readpref"
 
 	log "github.com/golang/glog"
 )
+
+const defaultTimeoutInSeconds = 10
 
 var Client *mongo.Client
 
@@ -48,18 +49,17 @@ func init() {
 	)
 
 	if err != nil {
-		log.Errorf("Unable to create new db client: %v", err)
+		log.Errorf("Unable to create new db client - endpoint: %s - reason: %v", endpoint, err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = Client.Connect(ctx)
-
-	if err != nil {
-		log.Errorf("Unable to connect to db: %v", err)
+	ctx, _ := context.WithTimeout(context.Background(), defaultTimeoutInSeconds*time.Second)
+	if err = Client.Connect(ctx); err != nil {
+		log.Errorf("Unable to connect to db - endpoint: %s - reason: %v", endpoint, err)
 	}
 
-	if err = ping(); err != nil {
-		log.Errorf("Unable to ping db: %v", err)
+	ctx, _ = context.WithTimeout(context.Background(), defaultTimeoutInSeconds*time.Second)
+	if err = Ping(ctx); err != nil {
+		log.Errorf("Unable to ping db - endpoint: %s - reason: %v", endpoint, err)
 	}
 }
 
@@ -85,7 +85,7 @@ func UpdateOneFieldById(
 	retries int,
 ) error {
 
-	sleeper := util.ExpoentialSleepSeconds()
+	sleeper := util.TimeExpoentialSleepSeconds()
 
 	for {
 		err := updateOneFieldById(ctx, collection, id, field, value)
@@ -139,7 +139,6 @@ func updateOneFieldById(
 	)
 }
 
-func ping() error {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	return Client.Ping(ctx, readpref.Primary())
+func Ping(ctx context.Context) error {
+	return Client.Ping(ctx, nil)
 }
