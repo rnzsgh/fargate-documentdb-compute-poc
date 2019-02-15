@@ -64,13 +64,34 @@ func init() {
 }
 
 // Find by id. mongo.ErrNoDocuments is returned if nothing is found
-func FindById(
+func FindOneById(
 	ctx context.Context,
 	collection *mongo.Collection,
 	id *primitive.ObjectID,
 	doc interface{},
 ) error {
-	return collection.FindOne(ctx, bson.D{{"_id", id}}).Decode(doc)
+	if res := collection.FindOne(ctx, bson.D{{"_id", id}}); res.Err() != nil {
+		return res.Err()
+	} else {
+		return res.Decode(doc)
+	}
+}
+
+// Delete by id. If no documents are deleted an mongo.ErrNoDocuments error
+// is returned.
+func DeleteOneById(
+	ctx context.Context,
+	collection *mongo.Collection,
+	id *primitive.ObjectID,
+) error {
+	if res, err := collection.DeleteOne(ctx, bson.D{{"_id", id}}); err != nil {
+		return err
+	} else {
+		if res.DeletedCount == 0 {
+			return mongo.ErrNoDocuments
+		}
+		return nil
+	}
 }
 
 // Update a single field in a document. Expects document to be
