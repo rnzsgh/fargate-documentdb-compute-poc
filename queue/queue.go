@@ -14,8 +14,6 @@ import (
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/util"
 )
 
-const defaultVisiblityInSeconds = 30
-
 // The queue entry structure.
 type QueueEntry struct {
 	Id         *primitive.ObjectID `json:"id" bson:"_id"`
@@ -30,12 +28,10 @@ type Queue struct {
 	collection *mongo.Collection
 }
 
+// Create new new queue struct.
 func NewQueue(collection *mongo.Collection) *Queue {
 	ensureCollectionIndexes(collection)
-
-	return &Queue{
-		collection: collection,
-	}
+	return &Queue{collection: collection}
 }
 
 func (e *QueueEntry) Delete(ctx context.Context) error {
@@ -64,11 +60,14 @@ func (q *Queue) Dequeue(
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
+
 	entry := &QueueEntry{}
 
 	if err := res.Decode(entry); err != nil {
 		return nil, err
 	}
+
+	entry.collection = q.collection
 
 	return entry, nil
 }
@@ -107,15 +106,8 @@ func (q *Queue) Enqueue(
 func ensureCollectionIndexes(collection *mongo.Collection) {
 	if _, err := collection.Indexes().CreateOne(
 		context.Background(),
-		mongo.IndexModel{Keys: bson.D{{"started", 1}}},
+		mongo.IndexModel{Keys: bson.D{{"started", 1}, {"created", 1}}},
 	); err != nil {
-		log.Errorf("Unable to create queue started index on collection: %s - reason: %v", collection.Name(), err)
-	}
-
-	if _, err := collection.Indexes().CreateOne(
-		context.Background(),
-		mongo.IndexModel{Keys: bson.D{{"created", 1}}},
-	); err != nil {
-		log.Errorf("Unable to create queue created index on collection: %s - reason: %v", collection.Name(), err)
+		log.Errorf("Unable to create queue started/created index on collection: %s - reason: %v", collection.Name(), err)
 	}
 }
