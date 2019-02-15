@@ -52,7 +52,7 @@ func TestJobUpdateFailureReason(t *testing.T) {
 		if err := JobUpdateFailureReason(&testJobId, "FAILED"); err != nil {
 			t.Errorf("Problem updating job failure reason: %v", err)
 		} else {
-			if j, err := JobFindById(&testJobId); err != nil {
+			if j, err := JobFindOneById(&testJobId); err != nil {
 				t.Errorf("Cannot load job entry: %v", err)
 			} else {
 				if j.FailureReason != "FAILED" {
@@ -68,7 +68,7 @@ func TestJobUpdateStopTime(t *testing.T) {
 		if err := JobUpdateStopTime(&testJobId); err != nil {
 			t.Errorf("Problem updating job stop time: %v", err)
 		} else {
-			if j, err := JobFindById(&testJobId); err != nil {
+			if j, err := JobFindOneById(&testJobId); err != nil {
 				t.Errorf("Cannot load job entry: %v", err)
 			} else {
 				if j.Stop == nil {

@@ -36,7 +36,7 @@ func TestTaskUpdateFailureReason(t *testing.T) {
 			}
 		}
 
-		if job, err := JobFindById(&taskTestJobId); err != nil {
+		if job, err := JobFindOneById(&taskTestJobId); err != nil {
 			t.Errorf("Cannot load job entry: %v", err)
 		} else {
 			for _, task := range job.Tasks {
@@ -58,7 +58,7 @@ func TestTaskUpdateArn(t *testing.T) {
 			}
 		}
 
-		if job, err := JobFindById(&taskTestJobId); err != nil {
+		if job, err := JobFindOneById(&taskTestJobId); err != nil {
 			t.Errorf("Cannot load job entry: %v", err)
 		} else {
 			for _, task := range job.Tasks {
@@ -79,7 +79,7 @@ func TestTaskUpdateStopTime(t *testing.T) {
 			}
 		}
 
-		if job, err := JobFindById(&taskTestJobId); err != nil {
+		if job, err := JobFindOneById(&taskTestJobId); err != nil {
 			t.Errorf("Cannot load job entry: %v", err)
 		} else {
 			for _, task := range job.Tasks {
