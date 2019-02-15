@@ -28,8 +28,10 @@ func JobCreate(job *Job) (err error) {
 	return
 }
 
+// Check to see if the job exists. This impl can be optimized
+// so that it doesn't pull the entire doc to verify
 func JobExists(id *primitive.ObjectID) (bool, error) {
-	job, err := JobFindById(id)
+	job, err := JobFindOneById(id)
 	if err != nil {
 		return false, err
 	}
@@ -41,11 +43,11 @@ func JobExists(id *primitive.ObjectID) (bool, error) {
 	return false, nil
 }
 
-func JobFindById(id *primitive.ObjectID) (*Job, error) {
+func JobFindOneById(id *primitive.ObjectID) (*Job, error) {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	job := &Job{}
 
-	if err := docdb.FindById(
+	if err := docdb.FindOneById(
 		ctx,
 		jobCollection(),
 		id,
