@@ -30,7 +30,7 @@ func TimeNowUtcPlusSeconds(seconds int64) *time.Time {
 
 // Sleeps for two seconds, then four, etc., each time the closure is
 // called. Closure function returns the count/times it has slept.
-func TimeExpoentialSleepSeconds() func() int {
+func TimeExponentialSleepSeconds() func() int {
 	count := 0
 	return func() int {
 		count++

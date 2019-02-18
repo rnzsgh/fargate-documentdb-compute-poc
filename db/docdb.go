@@ -106,7 +106,7 @@ func UpdateOneFieldById(
 	retries int,
 ) error {
 
-	sleeper := util.TimeExpoentialSleepSeconds()
+	sleeper := util.TimeExponentialSleepSeconds()
 
 	for {
 		err := updateOneFieldById(ctx, collection, id, field, value)
