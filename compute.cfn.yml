@@ -207,7 +207,7 @@ Resources:
                   - apt-get update && apt-get -y install python-pip && pip install --upgrade python && pip install --upgrade awscli
               pre_build:
                   commands:
-                  - TAG="latest"
+                  - TAG="$(date +%Y-%m-%d.%H.%M.%S).$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
                   - $(aws ecr get-login --no-include-email)
               build:
                 commands:
@@ -218,7 +218,7 @@ Resources:
                   - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
             artifacts:
               files: build.json
-          - ServiceName: !Ref GitSourceRepo
+          - ServiceName: !Ref GitSourceRepoWorker
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -526,47 +526,6 @@ Resources:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: run-task
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:RunTask
-                Condition:
-                  ArnEquals:
-                    ecs:cluster: !GetAtt FargateEcsCluster.Arn
-                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${AWS::StackName}-worker
-        - PolicyName: account-setting-task
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:PutAccountSetting
-                Resource: '*'
-        - PolicyName: pass-role
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                  - iam:GetRole
-                Resource:
-                  - !GetAtt TaskRoleWorker.Arn
-                  - !GetAtt TaskExecutionRole.Arn
-        - PolicyName: describe-list-task
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeTasks
-                Condition:
-                  ArnEquals:
-                    ecs:cluster: !GetAtt FargateEcsCluster.Arn
-                Resource: '*'
         - PolicyName: get-secret
           PolicyDocument:
             Version: 2012-10-17
@@ -877,6 +836,7 @@ Resources:
       Period: 300
       AlarmActions:
         - !Ref WorkerServiceScaleInPolicy
+      Namespace: Application/compute
       ComparisonOperator: LessThanThreshold
       MetricName: WorkerQueueDepth
     DependsOn:
