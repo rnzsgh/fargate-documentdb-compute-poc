@@ -324,16 +324,45 @@ Resources:
                   - ecr:InitiateLayerUpload
                   - ecr:UploadLayerPart
                   - ecr:CompleteLayerUpload
-              - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepositoryWorker}
+
+  CodePipelineServiceWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codepipeline-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
                 Effect: Allow
                 Action:
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:PutImage
-                  - ecr:InitiateLayerUpload
-                  - ecr:UploadLayerPart
-                  - ecr:CompleteLayerUpload
+                  - ecs:List*
+                  - ecs:Describe*
+                  - ecs:RegisterTaskDefinition
+                  - ecs:UpdateService
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:UploadArchive
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:CancelUploadArchive
+                  - iam:PassRole
+             - Resource: !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -446,7 +475,7 @@ Resources:
   CodePipelineWorkerGitHub:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      RoleArn: !GetAtt CodePipelineServiceWorkerRole.Arn
       ArtifactStore:
         Type: S3
         Location: !Ref CodePipelineWorkerArtifactBucket
@@ -500,7 +529,7 @@ Resources:
     DependsOn:
       - CodePipelineWorkerArtifactBucket
       - CodeBuildProjectWorker
-      - CodePipelineServiceRole
+      - CodePipelineServiceWorkerRole
       - DocumentDbInstance0
       - DocumentDbInstance1
 
@@ -652,7 +681,7 @@ Resources:
             Options:
               awslogs-region: !Ref AWS::Region
               awslogs-group: !Ref LogGroupWorker
-              awslogs-stream-prefix: !Ref GitSourceRepo
+              awslogs-stream-prefix: !Ref GitSourceRepoWorker
 
   SecretsManagerVpcEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
