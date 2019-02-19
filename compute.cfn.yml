@@ -136,6 +136,38 @@ Parameters:
       - HTTPS
     ConstraintDescription: Specify either HTTTP or HTTPS
 
+  # Scaling params
+  WorkerServiceScaleEvaluationPeriods:
+    Description: The number of periods over which data is compared to the specified threshold
+    Type: Number
+    Default: 2
+    MinValue: 2
+
+  WorkerServiceQueueDepthScaleOutThreshold:
+    Type: Number
+    Description: Average queue depth value to trigger auto scaling out
+    Default: 20
+
+  WorkerServiceQueueDepthScaleInThreshold:
+    Type: Number
+    Description: Average queue depth value to trigger auto scaling in
+    Default: 25
+    MinValue: 0
+    ConstraintDescription: Value must be between 0 or more
+
+  WorkerTaskMinContainerCount:
+    Type: Number
+    Description: Minimum number of containers to run for the service
+    Default: 1
+    MinValue: 0
+
+  WorkerTaskMaxContainerCount:
+    Type: Number
+    Description: Maximum number of containers to run for the service when auto scaling out
+    Default: 5
+    MinValue: 1
+    ConstraintDescription: Value must be at least one
+
 
 Resources:
 
@@ -450,6 +482,21 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              Configuration:
+                ClusterName: !Ref FargateEcsCluster
+                ServiceName: !GetAtt FargateServiceWorker.Name
+                FileName: build.json
+              InputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
     DependsOn:
       - CodePipelineWorkerArtifactBucket
       - CodeBuildProjectWorker
@@ -629,7 +676,7 @@ Resources:
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: !Ref GitSourceRepoWorker
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepositoryWorker}:latest
+          Image: !Ref SeedDockerImage
           Environment:
             - Name: DOCUMENT_DB_ENDPOINT
               Value: !GetAtt DocumentDbCluster.Endpoint
@@ -647,7 +694,6 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-group: !Ref LogGroupWorker
               awslogs-stream-prefix: !Ref GitSourceRepo
-
 
   SecretsManagerVpcEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -713,6 +759,129 @@ Resources:
       - FargateEcsCluster
       - FargateTaskDefinition
       - LoadBalancerListener
+
+  FargateServiceWorker:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref FargateEcsCluster
+      ServiceName: !Sub ${AWS::StackName}-worker
+      DesiredCount: !Ref WorkerTaskMinContainerCount
+      LaunchType: FARGATE
+      TaskDefinition: !Ref FargateTaskDefinitionWorker
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref AppSecurityGroup
+          Subnets:
+            - !Ref SubnetId0
+            - !Ref SubnetId1
+    DependsOn:
+      - FargateEcsCluster
+      - FargateTaskDefinitionWorker
+
+  ServiceAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: service-autoscaling
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - application-autoscaling:*
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: '*'
+
+  WorkerServiceScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref WorkerTaskMinContainerCount
+      MaxCapacity: !Ref WorkerTaskMaxContainerCount
+      ResourceId: !Sub
+        - service/${EcsClusterName}/${EcsWorkerServiceName}
+        - EcsClusterName: !Ref FargateEcsCluster
+          EcsWorkerServiceName: !GetAtt FargateServiceWorker.Name
+      RoleARN: !GetAtt ServiceAutoScalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+    DependsOn:
+      - FargateServiceWorker
+
+  WorkerServiceScaleOutPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleOutPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref WorkerServiceScalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - ScalingAdjustment: 1
+            MetricIntervalLowerBound: 0
+    DependsOn: WorkerServiceScalingTarget
+
+  WorkerServiceScaleInPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleInPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref WorkerServiceScalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - ScalingAdjustment: -1
+            MetricIntervalUpperBound: 0
+    DependsOn: WorkerServiceScalingTarget
+
+  WorkerServiceScaleOutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: !Ref WorkerServiceScaleEvaluationPeriods
+      Statistic: Average
+      TreatMissingData: notBreaching
+      Threshold: !Ref WorkerServiceQueueDepthScaleOutThreshold
+      AlarmDescription: Alarm to add capacity if queue depth is high
+      Period: 60
+      AlarmActions:
+        - !Ref WorkerServiceScaleOutPolicy
+      Namespace: Application/compute
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: WorkerQueueDepth
+    DependsOn:
+      - FargateServiceWorker
+      - WorkerServiceScaleOutPolicy
+
+  WorkerServiceScaleInAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: !Ref WorkerServiceScaleEvaluationPeriods
+      Statistic: Average
+      TreatMissingData: notBreaching
+      Threshold: !Ref WorkerServiceQueueDepthScaleInThreshold
+      AlarmDescription: Alarm to reduce capacity if container queue depth is low
+      Period: 300
+      AlarmActions:
+        - !Ref WorkerServiceScaleInPolicy
+      ComparisonOperator: LessThanThreshold
+      MetricName: WorkerQueueDepth
+    DependsOn:
+      - FargateServiceWorker
+      - WorkerServiceScaleInPolicy
 
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -969,6 +1138,16 @@ Outputs:
     Value: !GetAtt FargateService.Name
     Export:
       Name: !Sub ${AWS::StackName}-FargateServiceName
+
+  FargateServiceWorkerArn:
+    Value: !Ref FargateServiceWorker
+    Export:
+      Name: !Sub ${AWS::StackName}-FargateServiceWorkerArn
+
+  FargateServiceWorkerName:
+    Value: !GetAtt FargateServiceWorker.Name
+    Export:
+      Name: !Sub ${AWS::StackName}-FargateServiceWorkerName
 
   CodePipelineArtifactBucketName:
     Value: !Ref CodePipelineArtifactBucket
