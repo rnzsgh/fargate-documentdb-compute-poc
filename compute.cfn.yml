@@ -9,6 +9,10 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Description: VPC id
 
+  RouteTableId:
+    Type: String
+    Description: Main route table id
+
   SubnetId0:
     Type: AWS::EC2::Subnet::Id
     Description: Subnet id 0
@@ -67,7 +71,7 @@ Parameters:
   ContainerCpuWorker:
     Type: Number
     Description: Amount of CPU for the container - https://aws.amazon.com/fargate/pricing/
-    Default: 2048
+    Default: 256
     MinValue: 256
     MaxValue: 4096
     ConstraintDescription: Value must be between 256 and 4096
@@ -75,7 +79,7 @@ Parameters:
   ContainerMemoryWorker:
     Type: Number
     Description: Amount of memory for the container - https://aws.amazon.com/fargate/pricing/
-    Default: 4096
+    Default: 512
     MinValue: 512
     MaxValue: 30720
     ConstraintDescription: Value must be between 512 and 30720
@@ -228,6 +232,13 @@ Resources:
             Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepositoryWorker}
       Name: !Sub ${AWS::StackName}-worker
       ServiceRole: !Ref CodeBuildServiceRole
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets:
+          - !Ref SubnetId0
+          - !Ref SubnetId1
+        SecurityGroupIds:
+          - !Ref AppSecurityGroup
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -267,6 +278,13 @@ Resources:
             Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepository}
       Name: !Ref AWS::StackName
       ServiceRole: !Ref CodeBuildServiceRole
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets:
+          - !Ref SubnetId0
+          - !Ref SubnetId1
+        SecurityGroupIds:
+          - !Ref AppSecurityGroup
 
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
@@ -356,7 +374,7 @@ Resources:
                   - codecommit:GetUploadArchiveStatus
                   - codecommit:CancelUploadArchive
                   - iam:PassRole
-             - Resource: !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
+              - Resource: !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
                 Effect: Allow
                 Action:
                   - s3:PutObject
@@ -697,6 +715,20 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-SecretsManagerVpcEndpointSecurityGroup
 
+  EcrVpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECR Vpc Endpoint security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - SourceSecurityGroupId: !Ref AppSecurityGroup
+        IpProtocol: tcp
+        ToPort: 443
+        FromPort: 443
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-EcrVpcEndpointSecurityGroup
+
   SecretsManagerVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -708,6 +740,50 @@ Resources:
         - !Ref SubnetId1
       SecurityGroupIds:
         - !GetAtt SecretsManagerVpcEndpointSecurityGroup.GroupId
+
+  S3VpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*
+      RouteTableIds:
+        - !Ref RouteTableId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VpcId
+
+  EcrDkrVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref SubnetId0
+        - !Ref SubnetId1
+      SecurityGroupIds:
+        - !GetAtt EcrVpcEndpointSecurityGroup.GroupId
+
+  EcrApiVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref SubnetId0
+        - !Ref SubnetId1
+      SecurityGroupIds:
+        - !GetAtt EcrVpcEndpointSecurityGroup.GroupId
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
