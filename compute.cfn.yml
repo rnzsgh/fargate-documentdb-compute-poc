@@ -780,6 +780,16 @@ Resources:
               - s3:GetObject
             Resource:
               - !Sub arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:GetObjectVersion
+            Resource:
+              - !Sub arn:aws:s3:::${CodePipelineArtifactBucket}/*
+              - !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
+
       RouteTableIds:
         - !Ref RouteTableId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
