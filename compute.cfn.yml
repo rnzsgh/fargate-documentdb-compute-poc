@@ -715,6 +715,20 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-SecretsManagerVpcEndpointSecurityGroup
 
+  CloudWatchLogsVpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CloudWatch Logs Vpc Endpoint security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - SourceSecurityGroupId: !Ref AppSecurityGroup
+        IpProtocol: tcp
+        ToPort: 443
+        FromPort: 443
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-CloudWatchLogsVpcEndpointSecurityGroup
+
   EcrVpcEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -740,6 +754,18 @@ Resources:
         - !Ref SubnetId1
       SecurityGroupIds:
         - !GetAtt SecretsManagerVpcEndpointSecurityGroup.GroupId
+
+  CloudWatchLogsVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref SubnetId0
+        - !Ref SubnetId1
+      SecurityGroupIds:
+        - !GetAtt CloudWatchLogsVpcEndpointSecurityGroup.GroupId
 
   S3VpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
