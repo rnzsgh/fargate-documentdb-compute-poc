@@ -1,6 +1,7 @@
 # This is a multi-stage build. First we are going to compile and then
 # create a small image for runtime.
-FROM golang:1.11.4 as builder
+ARG ACCOUNT_ID
+FROM ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/docker-golang-base:latest as builder
 
 ENV GO111MODULE on
 
