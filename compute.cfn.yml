@@ -5,21 +5,15 @@ Description: Fargate Compute Example with DocumentDB
 
 Parameters:
 
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-    Description: VPC id
+  AvailabilityZone0:
+    Description: The first availability zone in the region
+    Type: AWS::EC2::AvailabilityZone::Name
+    ConstraintDescription: Must be a valid availability zone
 
-  RouteTableId:
-    Type: String
-    Description: Main route table id
-
-  SubnetId0:
-    Type: AWS::EC2::Subnet::Id
-    Description: Subnet id 0
-
-  SubnetId1:
-    Type: AWS::EC2::Subnet::Id
-    Description: Subnet id 1
+  AvailabilityZone1:
+    Description: The second availability zone in the region
+    Type: AWS::EC2::AvailabilityZone::Name
+    ConstraintDescription: Must be a valid availability zone
 
   SeedDockerImage:
     Type: String
@@ -173,7 +167,142 @@ Parameters:
     ConstraintDescription: Value must be at least one
 
 
+Mappings:
+
+  # Maps CIDR blocks to VPC and various subnets
+  CidrMap:
+    Vpc:
+      Cidr: 10.50.0.0/16
+    Public0:
+      Cidr: 10.50.0.0/24
+    Public1:
+      Cidr: 10.50.1.0/24
+    Private0:
+      Cidr: 10.50.64.0/19
+    Private1:
+      Cidr: 10.50.96.0/19
+
+
 Resources:
+
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [ CidrMap, Vpc, Cidr ]
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+
+  PublicSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !FindInMap [ CidrMap, Public0, Cidr ]
+      AvailabilityZone: !Ref AvailabilityZone0
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-PublicSubnet0
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !FindInMap [ CidrMap, Public1, Cidr ]
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-PublicSubnet1
+
+  PrivateSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !FindInMap [ CidrMap, Private0, Cidr ]
+      AvailabilityZone: !Ref AvailabilityZone0
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-PrivateSubnet0
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !FindInMap [ CidrMap, Private1, Cidr ]
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-PrivateSubnet1
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-igw
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-public-route
+
+  PrivateRouteTableSubnet0:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-private-route-0
+
+  PrivateRouteTableSubnet1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-private-route-1
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet0
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetNetworkAclAssociation0:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet0
+      NetworkAclId: !GetAtt Vpc.DefaultNetworkAcl
+
+  PublicSubnetNetworkAclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      NetworkAclId: !GetAtt Vpc.DefaultNetworkAcl
 
   CodePipelineArtifactBucket:
     Type: AWS::S3::Bucket
@@ -215,9 +344,9 @@ Resources:
                   - $(aws ecr get-login --no-include-email)
               build:
                 commands:
-                  - docker build --tag $REPOSITORY_URI:$TAG .
-              post_build:
-                commands:
+                  - docker build --build-arg ACCOUNT_ID=$ACCOUNT_ID --tag $REPOSITORY_URI:$TAG .
+                post_build:
+                  commands:
                   - docker push $REPOSITORY_URI:$TAG
                   - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
             artifacts:
@@ -230,13 +359,19 @@ Resources:
         EnvironmentVariables:
           - Name: REPOSITORY_URI
             Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepositoryWorker}
+          - Name: ACCOUNT_ID
+            Value: !Ref AWS::AccountId
       Name: !Sub ${AWS::StackName}-worker
       ServiceRole: !Ref CodeBuildServiceRole
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref LogGroupWorkerBuild
       VpcConfig:
-        VpcId: !Ref VpcId
+        VpcId: !Ref Vpc
         Subnets:
-          - !Ref SubnetId0
-          - !Ref SubnetId1
+          - !Ref PrivateSubnet0
+          - !Ref PrivateSubnet1
         SecurityGroupIds:
           - !Ref AppSecurityGroup
 
@@ -261,7 +396,7 @@ Resources:
                   - $(aws ecr get-login --no-include-email)
               build:
                 commands:
-                  - docker build --tag $REPOSITORY_URI:$TAG .
+                  - docker build --build-arg ACCOUNT_ID=$ACCOUNT_ID --tag $REPOSITORY_URI:$TAG .
               post_build:
                 commands:
                   - docker push $REPOSITORY_URI:$TAG
@@ -276,13 +411,19 @@ Resources:
         EnvironmentVariables:
           - Name: REPOSITORY_URI
             Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrDockerRepository}
+          - Name: ACCOUNT_ID
+            Value: !Ref AWS::AccountId
       Name: !Ref AWS::StackName
       ServiceRole: !Ref CodeBuildServiceRole
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref LogGroupManagerBuild
       VpcConfig:
-        VpcId: !Ref VpcId
+        VpcId: !Ref Vpc
         Subnets:
-          - !Ref SubnetId0
-          - !Ref SubnetId1
+          - !Ref PrivateSubnet0
+          - !Ref PrivateSubnet1
         SecurityGroupIds:
           - !Ref AppSecurityGroup
 
@@ -551,15 +692,25 @@ Resources:
       - DocumentDbInstance0
       - DocumentDbInstance1
 
+  LogGroupManagerBuild:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /app/${AWS::StackName}/build-manager
+
+  LogGroupWorkerBuild:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /app/${AWS::StackName}/build-worker
+
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /fargate/${AWS::StackName}/compute-manager
+      LogGroupName: !Sub /app/${AWS::StackName}/compute-manager
 
   LogGroupWorker:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /fargate/${AWS::StackName}/compute-worker
+      LogGroupName: !Sub /app/${AWS::StackName}/compute-worker
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -642,6 +793,7 @@ Resources:
               Value: !Ref AWS::AccountId
             - Name: AWS_REGION
               Value: !Ref AWS::Region
+
             - Name: TASK_EXECUTION_ROLE
               Value: !Ref TaskExecutionRole
             - Name: TASK_EXECUTION_ROLE_ARN
@@ -651,17 +803,15 @@ Resources:
             - Name: CONTAINER_NAME
               Value: !Ref GitSourceRepoWorker
             - Name: SUBNET_0
-              Value: !Ref SubnetId0
+              Value: !Ref PrivateSubnet0
             - Name: SUBNET_1
-              Value: !Ref SubnetId1
+              Value: !Ref PrivateSubnet1
             - Name: APP_SECURITY_GROUP_ID
               Value: !Ref AppSecurityGroup
             - Name: CLUSTER_NAME
               Value: !Ref FargateEcsCluster
             - Name: STACK_NAME
               Value: !Ref AWS::StackName
-            - Name: NGINX_PORT # This is only for the initial seed container - not used after that
-              Value: !Ref AppIngressPort
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -705,7 +855,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Secrets Manager Vpc Endpoint security group
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupIngress:
       - SourceSecurityGroupId: !Ref AppSecurityGroup
         IpProtocol: tcp
@@ -719,7 +869,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: CloudWatch Logs Vpc Endpoint security group
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupIngress:
       - SourceSecurityGroupId: !Ref AppSecurityGroup
         IpProtocol: tcp
@@ -733,7 +883,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: ECR Vpc Endpoint security group
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupIngress:
       - SourceSecurityGroupId: !Ref AppSecurityGroup
         IpProtocol: tcp
@@ -746,24 +896,26 @@ Resources:
   SecretsManagerVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
       VpcEndpointType: Interface
+      PrivateDnsEnabled: true
       SubnetIds:
-        - !Ref SubnetId0
-        - !Ref SubnetId1
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !GetAtt SecretsManagerVpcEndpointSecurityGroup.GroupId
 
   CloudWatchLogsVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
+      PrivateDnsEnabled: true
       ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
       VpcEndpointType: Interface
       SubnetIds:
-        - !Ref SubnetId0
-        - !Ref SubnetId1
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !GetAtt CloudWatchLogsVpcEndpointSecurityGroup.GroupId
 
@@ -789,35 +941,35 @@ Resources:
             Resource:
               - !Sub arn:aws:s3:::${CodePipelineArtifactBucket}/*
               - !Sub arn:aws:s3:::${CodePipelineWorkerArtifactBucket}/*
-
       RouteTableIds:
-        - !Ref RouteTableId
+        - !Ref PrivateRouteTableSubnet0
+        - !Ref PrivateRouteTableSubnet1
       ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
 
   EcrDkrVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
       SubnetIds:
-        - !Ref SubnetId0
-        - !Ref SubnetId1
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !GetAtt EcrVpcEndpointSecurityGroup.GroupId
 
   EcrApiVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
       SubnetIds:
-        - !Ref SubnetId0
-        - !Ref SubnetId1
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !GetAtt EcrVpcEndpointSecurityGroup.GroupId
 
@@ -849,12 +1001,12 @@ Resources:
           TargetGroupArn: !Ref TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
+          AssignPublicIp: DISABLED
           SecurityGroups:
             - !Ref AppSecurityGroup
           Subnets:
-            - !Ref SubnetId0
-            - !Ref SubnetId1
+            - !Ref PrivateSubnet0
+            - !Ref PrivateSubnet1
     DependsOn:
       - FargateEcsCluster
       - FargateTaskDefinition
@@ -870,12 +1022,12 @@ Resources:
       TaskDefinition: !Ref FargateTaskDefinitionWorker
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
+          AssignPublicIp: DISABLED
           SecurityGroups:
             - !Ref AppSecurityGroup
           Subnets:
-            - !Ref SubnetId0
-            - !Ref SubnetId1
+            - !Ref PrivateSubnet0
+            - !Ref PrivateSubnet1
     DependsOn:
       - FargateEcsCluster
       - FargateTaskDefinitionWorker
@@ -1026,7 +1178,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Enable access to the DocumentDB
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupEgress:
       - CidrIp: 0.0.0.0/0
         IpProtocol: tcp
@@ -1045,7 +1197,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: App security group
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupIngress:
       - SourceSecurityGroupId: !Ref AlbSecurityGroup
         IpProtocol: tcp
@@ -1068,7 +1220,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Enable HTTP/HTTPs ingress
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         IpProtocol: tcp
@@ -1092,8 +1244,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: Database subnet group
       SubnetIds:
-      - !Ref SubnetId0
-      - !Ref SubnetId1
+      - !Ref PrivateSubnet0
+      - !Ref PrivateSubnet1
       Tags:
       - Key: Name
         Value: !Ref AWS::StackName
@@ -1101,7 +1253,7 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       Port: !Ref AppIngressPort
       Protocol: !Ref AppProtocol
       Matcher:
@@ -1124,8 +1276,8 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Subnets:
-        - !Ref SubnetId0
-        - !Ref SubnetId1
+        - !Ref PublicSubnet0
+        - !Ref PublicSubnet1
       SecurityGroups:
         - !Ref AlbSecurityGroup
       Tags:
@@ -1144,6 +1296,58 @@ Resources:
     DependsOn:
     - TargetGroup
     - ApplicationLoadBalancer
+
+  NatEip0:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+    DependsOn: VpcGatewayAttachment
+
+  NatEip1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+    DependsOn: VpcGatewayAttachment
+
+  NatGateway0:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip0.AllocationId
+      SubnetId: !Ref PublicSubnet0
+    DependsOn: VpcGatewayAttachment
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+    DependsOn: VpcGatewayAttachment
+
+  NatRoute0:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableSubnet0
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway0
+
+  NatRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableSubnet1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  SubnetRouteTableAssociationNatGateway0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet0
+      RouteTableId: !Ref PrivateRouteTableSubnet0
+
+  SubnetRouteTableAssociationNatGateway1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTableSubnet1
 
 
 Outputs:
