@@ -17,7 +17,6 @@ Parameters:
 
   SeedDockerImage:
     Type: String
-    Default: registry.hub.docker.com/library/nginx:1.15
     Description: Initial image before CodePipeline is executed. Existing application images in ECR should override this parameter
 
   GitSourceRepo:
@@ -345,8 +344,8 @@ Resources:
               build:
                 commands:
                   - docker build --build-arg ACCOUNT_ID=$ACCOUNT_ID --tag $REPOSITORY_URI:$TAG .
-                post_build:
-                  commands:
+              post_build:
+                commands:
                   - docker push $REPOSITORY_URI:$TAG
                   - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
             artifacts:
@@ -474,6 +473,16 @@ Resources:
                   - s3:PutObject
                   - s3:GetObjectVersion
               - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepository}
+                Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+              - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrDockerRepositoryWorker}
                 Effect: Allow
                 Action:
                   - ecr:GetDownloadUrlForLayer
@@ -793,7 +802,6 @@ Resources:
               Value: !Ref AWS::AccountId
             - Name: AWS_REGION
               Value: !Ref AWS::Region
-
             - Name: TASK_EXECUTION_ROLE
               Value: !Ref TaskExecutionRole
             - Name: TASK_EXECUTION_ROLE_ARN
