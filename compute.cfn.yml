@@ -1075,7 +1075,7 @@ Resources:
       ResourceId: !Sub
         - service/${EcsClusterName}/${EcsWorkerServiceName}
         - EcsClusterName: !Ref FargateEcsCluster
-          EcsWorkerServiceName: !GetAtt FargateServiceWorker.Name
+          EcsWorkerServiceName: !Sub ${AWS::StackName}-worker # There is a bug in the GetAtt Service.Name call
       RoleARN: !GetAtt ServiceAutoScalingRole.Arn
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
