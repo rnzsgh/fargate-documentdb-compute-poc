@@ -347,10 +347,10 @@ Resources:
               post_build:
                 commands:
                   - docker push $REPOSITORY_URI:$TAG
-                  - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
+                  - printf '[{"name":"${ImageName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > images.json
             artifacts:
-              files: build.json
-          - ServiceName: !Sub ${AWS::StackName}-worker
+              files: images.json
+          - ImageName: !Ref GitSourceRepoWorker
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -399,10 +399,10 @@ Resources:
               post_build:
                 commands:
                   - docker push $REPOSITORY_URI:$TAG
-                  - printf '[{"name":"${ServiceName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
+                  - printf '[{"name":"${ImageName}","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > images.json
             artifacts:
-              files: build.json
-          - ServiceName: !Ref AWS::StackName
+              files: images.json
+          - ImageName: !Ref GitSourceRepo
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -628,7 +628,7 @@ Resources:
               Configuration:
                 ClusterName: !Ref FargateEcsCluster
                 ServiceName: !GetAtt FargateService.Name
-                FileName: build.json
+                FileName: images.json
               InputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
@@ -648,9 +648,9 @@ Resources:
         Type: S3
         Location: !Ref CodePipelineWorkerArtifactBucket
       Stages:
-        - Name: Source
+        - Name: Source Worker
           Actions:
-            - Name: App
+            - Name: Source Worker
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
@@ -664,9 +664,9 @@ Resources:
               OutputArtifacts:
                 - Name: App
               RunOrder: 1
-        - Name: Build
+        - Name: Build Worker
           Actions:
-            - Name: Build
+            - Name: Build Worker
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -679,9 +679,9 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
-        - Name: Deploy
+        - Name: Deploy Worker
           Actions:
-            - Name: Deploy
+            - Name: Deploy Worker
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
@@ -690,13 +690,14 @@ Resources:
               Configuration:
                 ClusterName: !Ref FargateEcsCluster
                 ServiceName: !GetAtt FargateServiceWorker.Name
-                FileName: build.json
+                FileName: images.json
               InputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
     DependsOn:
       - CodePipelineWorkerArtifactBucket
       - CodeBuildProjectWorker
+      - FargateServiceWorker
       - CodePipelineServiceWorkerRole
       - DocumentDbInstance0
       - DocumentDbInstance1
@@ -785,6 +786,7 @@ Resources:
       ContainerDefinitions:
         - Name: !Ref GitSourceRepo
           Image: !Ref SeedDockerImage
+          ReadonlyRootFilesystem: true
           PortMappings:
             - ContainerPort: !Ref AppIngressPort
           Environment:
@@ -841,6 +843,7 @@ Resources:
       ContainerDefinitions:
         - Name: !Ref GitSourceRepoWorker
           Image: !Ref SeedDockerImage
+          ReadonlyRootFilesystem: true
           Environment:
             - Name: DOCUMENT_DB_ENDPOINT
               Value: !GetAtt DocumentDbCluster.Endpoint
