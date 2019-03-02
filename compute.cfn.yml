@@ -627,7 +627,7 @@ Resources:
                 Provider: ECS
               Configuration:
                 ClusterName: !Ref FargateEcsCluster
-                ServiceName: !GetAtt FargateService.Name
+                ServiceName: !GetAtt FargateServiceManager.Name
                 FileName: images.json
               InputArtifacts:
                 - Name: BuildOutput
@@ -636,7 +636,7 @@ Resources:
       - CodePipelineArtifactBucket
       - CodeBuildProject
       - CodePipelineServiceRole
-      - FargateService
+      - FargateServiceManager
       - DocumentDbInstance0
       - DocumentDbInstance1
 
@@ -648,9 +648,9 @@ Resources:
         Type: S3
         Location: !Ref CodePipelineWorkerArtifactBucket
       Stages:
-        - Name: Source-Worker
+        - Name: Source
           Actions:
-            - Name: Source-Worker
+            - Name: Source
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
@@ -664,9 +664,9 @@ Resources:
               OutputArtifacts:
                 - Name: App
               RunOrder: 1
-        - Name: Build-Worker
+        - Name: Build
           Actions:
-            - Name: Build-Worker
+            - Name: Build
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -679,9 +679,9 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
-        - Name: Deploy-Worker
+        - Name: Deploy
           Actions:
-            - Name: Deploy-Worker
+            - Name: Deploy
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
@@ -689,7 +689,7 @@ Resources:
                 Provider: ECS
               Configuration:
                 ClusterName: !Ref FargateEcsCluster
-                ServiceName: !GetAtt FargateServiceWorker.Name
+                ServiceName: !Sub ${AWS::StackName}-worker # There is a bug in the GetAtt Service.Name call
                 FileName: images.json
               InputArtifacts:
                 - Name: BuildOutput
@@ -772,7 +772,7 @@ Resources:
                     secretsmanager:VersionStage: AWSCURRENT
                 Resource: !Ref DatabasePasswordSecret
 
-  FargateTaskDefinition:
+  FargateTaskDefinitionManager:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref AWS::StackName
@@ -998,14 +998,14 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  FargateService:
+  FargateServiceManager:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref FargateEcsCluster
       ServiceName: !Ref AWS::StackName
       DesiredCount: 1
       LaunchType: FARGATE
-      TaskDefinition: !Ref FargateTaskDefinition
+      TaskDefinition: !Ref FargateTaskDefinitionManager
       LoadBalancers:
         - ContainerName: !Ref GitSourceRepo
           ContainerPort: !Ref AppIngressPort
@@ -1020,7 +1020,7 @@ Resources:
             - !Ref PrivateSubnet1
     DependsOn:
       - FargateEcsCluster
-      - FargateTaskDefinition
+      - FargateTaskDefinitionManager
       - LoadBalancerListener
 
   FargateServiceWorker:
@@ -1042,6 +1042,7 @@ Resources:
     DependsOn:
       - FargateEcsCluster
       - FargateTaskDefinitionWorker
+      - FargateServiceManager
 
   ServiceAutoScalingRole:
     Type: AWS::IAM::Role
@@ -1445,23 +1446,25 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-FargateEcsClusterArn
 
-  FargateServiceArn:
-    Value: !Ref FargateService
+  FargateServiceManagerArn:
+    Value: !Ref FargateServiceManager
     Export:
-      Name: !Sub ${AWS::StackName}-FargateServiceArn
+      Name: !Sub ${AWS::StackName}-FargateServiceManagerArn
 
-  FargateServiceName:
-    Value: !GetAtt FargateService.Name
+  FargateServiceManagerName:
+    Value: !GetAtt FargateServiceManager.Name
     Export:
-      Name: !Sub ${AWS::StackName}-FargateServiceName
+      Name: !Sub ${AWS::StackName}-FargateServiceManagerName
 
   FargateServiceWorkerArn:
     Value: !Ref FargateServiceWorker
     Export:
       Name: !Sub ${AWS::StackName}-FargateServiceWorkerArn
 
+  # There is a CFN bug if you have multiple services in the same template, the
+  # name attribute is not correct, so we are manually setting it.
   FargateServiceWorkerName:
-    Value: !GetAtt FargateServiceWorker.Name
+    Value: !Sub ${AWS::StackName}-worker
     Export:
       Name: !Sub ${AWS::StackName}-FargateServiceWorkerName
 
