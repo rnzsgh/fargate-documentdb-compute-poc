@@ -648,9 +648,9 @@ Resources:
         Type: S3
         Location: !Ref CodePipelineWorkerArtifactBucket
       Stages:
-        - Name: Source Worker
+        - Name: Source-Worker
           Actions:
-            - Name: Source Worker
+            - Name: Source-Worker
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
@@ -664,9 +664,9 @@ Resources:
               OutputArtifacts:
                 - Name: App
               RunOrder: 1
-        - Name: Build Worker
+        - Name: Build-Worker
           Actions:
-            - Name: Build Worker
+            - Name: Build-Worker
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -679,9 +679,9 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
               RunOrder: 1
-        - Name: Deploy Worker
+        - Name: Deploy-Worker
           Actions:
-            - Name: Deploy Worker
+            - Name: Deploy-Worker
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
