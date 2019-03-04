@@ -15,18 +15,22 @@ import (
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 
 	log "github.com/golang/glog"
+	queue "github.com/rnzsgh/documentdb-queue"
 )
 
 const defaultTimeoutInSeconds = 10
 
 var Client *mongo.Client
 
+var TaskDispatchQueue *queue.Queue
+var TaskResponseQueue *queue.Queue
+
 func init() {
 
 	endpoint := os.Getenv("DOCUMENT_DB_ENDPOINT")
 	port := os.Getenv("DOCUMENT_DB_PORT")
 	user := os.Getenv("DOCUMENT_DB_USER")
-	pemFile := os.Getenv("DOCUMENT_DB_PEM")
+	caFile := os.Getenv("DOCUMENT_DB_PEM")
 
 	password := cloud.Secrets.DatabasePassword
 
@@ -37,13 +41,32 @@ func init() {
 	}
 
 	var err error
+	if TaskDispatchQueue, err = queue.NewQueue(
+		"work",
+		"dispatchQueue",
+		connectionUri,
+		caFile, 5*time.Second,
+	); err != nil {
+		log.Errorf("Unable to create work dispatch queue - endpoint: %s - reason: %v", endpoint, err)
+	}
+
+	if TaskResponseQueue, err = queue.NewQueue(
+		"work",
+		"responseQueue",
+		connectionUri,
+		caFile,
+		5*time.Second,
+	); err != nil {
+		log.Errorf("Unable to create work response queue - endpoint: %s - reason: %v", endpoint, err)
+	}
+
 	Client, err = mongo.NewClientWithOptions(
 		connectionUri,
 		options.Client().SetSSL(
 			&options.SSLOpt{
 				Enabled:  true,
 				Insecure: true,
-				CaFile:   pemFile,
+				CaFile:   caFile,
 			},
 		),
 	)

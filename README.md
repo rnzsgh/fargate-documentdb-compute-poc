@@ -10,16 +10,8 @@ export DOCUMENT_DB_ENDPOINT=localhost
 export DOCUMENT_DB_PORT=27017
 export DOCUMENT_DB_USER=test
 export DOCUMENT_DB_PASSWORD=test
-export AWS_REGION=us-east-1
-export CLUSTER_NAME=compute-0
-export CONTAINER_NAME=fargate-documentdb-compute-poc-worker
-export TASK_DEFINITION_FAMILY_WORKER=compute-0-worker
-export SUBNET_0=subnet-31e8660d
-export SUBNET_1=subnet-4b642f66
-export APP_SECURITY_GROUP_ID=sg-088596b48d1eded7c
 export DOCUMENT_DB_PEM=/FULL_PATH/fargate-documentdb-compute-poc/local.pem
 export LOCAL=true
-export STACK_NAME=compute-0
 ```
 
 To test locally with MongoDB 3.6.9, you can use the following commands:

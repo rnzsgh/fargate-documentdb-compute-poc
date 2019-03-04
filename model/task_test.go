@@ -2,7 +2,6 @@ package model
 
 import (
 	"testing"
-	"time"
 
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/util"
@@ -25,48 +24,6 @@ func TestCreateJobWithTasksEntry(t *testing.T) {
 			t.Errorf("Problem creating job entry for test task: %v", err)
 		}
 
-	})
-}
-
-func TestTaskUpdateFailureReason(t *testing.T) {
-	t.Run("TestTaskUpdateFailureReason", func(t *testing.T) {
-		for _, task := range testJob.Tasks {
-			if err := TaskUpdateFailureReason(task, "FAILED"); err != nil {
-				t.Errorf("Problem updating task failure reason: %v", err)
-			}
-		}
-
-		if job, err := JobFindOneById(&taskTestJobId); err != nil {
-			t.Errorf("Cannot load job entry: %v", err)
-		} else {
-			for _, task := range job.Tasks {
-				if task.FailureReason != "FAILED" {
-					t.Errorf("Failed to update the task failure reaason - expected: FAILED - recevied: %s", task.FailureReason)
-				}
-			}
-		}
-	})
-}
-
-func TestTaskUpdateArn(t *testing.T) {
-	t.Run("TestTaskUpdateArn", func(t *testing.T) {
-		for _, task := range testJob.Tasks {
-			now := time.Now()
-			task.Stop = &now
-			if err := TaskUpdateArn(task, "test"); err != nil {
-				t.Errorf("Problem updating task arn - reason: %v", err)
-			}
-		}
-
-		if job, err := JobFindOneById(&taskTestJobId); err != nil {
-			t.Errorf("Cannot load job entry: %v", err)
-		} else {
-			for _, task := range job.Tasks {
-				if len(task.Arn) == 0 {
-					t.Errorf("Failed to update the task arn")
-				}
-			}
-		}
 	})
 }
 

@@ -13,23 +13,14 @@ import (
 	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
 )
 
-const dataTestCount = 10
+const dataTestCount = 1000
 
 const dataTestItems = 2500
-const dataTestItemsInner = 200
 
 type Data struct {
 	Id      *primitive.ObjectID `json:"id" bson:"_id"`
-	X       [][]float32         `json:"x" bson:"x"`
-	W       [][]float32         `json:"w" bson:"w"`
-	Results [][]float32         `json:"results" bson:"results"`
-}
-
-type DataRaw struct {
-	Id      *primitive.ObjectID `json:"id" bson:"_id"`
-	X       []byte              `json:"x" bson:"x"`
-	W       []byte              `json:"w" bson:"w"`
-	Results []byte              `json:"results" bson:"results"`
+	P       []float64           `json:"p" bson:"p"`
+	Entropy float64             `json:"entropy" bson:"entropy"`
 }
 
 func DataEnsureTest() error {
@@ -45,18 +36,12 @@ func DataEnsureTest() error {
 			id := primitive.NewObjectID()
 			data := &Data{Id: &id}
 
-			data.X = make([][]float32, dataTestItems)
-			data.W = make([][]float32, dataTestItems)
+			data.P = make([]float64, dataTestItems)
 
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-			for i0 := 0; i0 < dataTestItems; i0++ {
-				data.X[i0] = make([]float32, dataTestItemsInner)
-				data.W[i0] = make([]float32, dataTestItemsInner)
-				for i1 := 0; i1 < dataTestItemsInner; i1++ {
-					data.X[i0][i1] = r.Float32()
-					data.W[i0][i1] = r.Float32()
-				}
+			for i := 0; i < dataTestItems; i++ {
+				data.P[i] = r.Float64()
 			}
 
 			if err := DataCreate(data); err != nil {
@@ -68,28 +53,6 @@ func DataEnsureTest() error {
 		return fmt.Errorf("Invalid data count - expected: %d - received: %d", dataTestCount, count)
 	}
 	return nil
-}
-
-func dataConvertToRaw(data *Data) (*DataRaw, error) {
-
-	//const dataTestItems = 2500
-	//const dataTestItemsInner = 200
-
-	/*
-
-		bx := bytes.NewBuffer(make([]byte, (dataTestItems * dataTestItemsInner * 4)))
-		bw := bytes.NewBuffer(make([]byte, (dataTestItems * dataTestItemsInner * 4)))
-
-		//bytes
-
-		for i0 := 0; i0 < dataTestItems; i0++ {
-			for i1 := 0; i1 < dataTestItemsInner; i1++ {
-
-			}
-		}
-	*/
-
-	return nil, nil
 }
 
 func DataCount() (count int64, err error) {
@@ -129,7 +92,7 @@ func DataDeleteAll() (err error) {
 }
 
 func DataCreate(data *Data) (err error) {
-	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 300*time.Second)
 	_, err = dataCollection().InsertOne(ctx, data)
 	return
 }

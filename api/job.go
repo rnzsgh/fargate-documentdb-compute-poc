@@ -56,8 +56,6 @@ func JobStart(w http.ResponseWriter, r *http.Request) {
 
 	response.Job = job
 
-	// Normally this would be application/json, but we don't want to prompt downloads
-
 	out, _ := json.Marshal(response)
 	io.WriteString(w, string(out))
 }

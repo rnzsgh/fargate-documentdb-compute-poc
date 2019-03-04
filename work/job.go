@@ -1,46 +1,83 @@
 package work
 
 import (
+	"context"
+	"encoding/json"
+	"sync"
+	"time"
+
 	log "github.com/golang/glog"
+	queue "github.com/rnzsgh/documentdb-queue"
+	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 )
 
 var JobSubmitChannel = make(chan *model.Job)
 
+var jobs sync.Map
+
 func init() {
-	go processJobs(JobSubmitChannel)
+
+	go taskCompletedListener(docdb.TaskResponseQueue.Listen(2))
+
+	go newJobListener(JobSubmitChannel)
 
 	if jobs, err := model.JobFindRunning(); err != nil {
 		log.Errorf("Unable to load running jobs on start: %v", err)
 	} else {
 		for _, job := range jobs {
-			go processJob(job)
+			runJob(job)
 		}
 	}
 }
 
-func processJobs(jobs <-chan *model.Job) {
+func newJobListener(jobs <-chan *model.Job) {
 	for job := range jobs {
-		go processJob(job)
+		runJob(job)
 	}
 }
 
-func waitForTasksToComplete(taskCount int, completedTaskChannel chan *model.Task) {
-	count := 0
+func taskCompletedListener(msgs <-chan *queue.QueueMessage) {
+	for msg := range msgs {
 
-	for {
-		select {
-		case _ = <-completedTaskChannel:
-			count++
+		var vals map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &vals); err != nil {
+			log.Errorf("Unable to unmarshal task completed payload - reason: %v", err)
+			continue
 		}
 
-		if count == taskCount {
-			break
+		job, ok := jobs.Load(vals["jobId"].(string))
+
+		if !ok {
+			ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := msg.Done(ctx); err != nil {
+				log.Errorf("Unable to mark queue msg as done - reason: %v", err)
+			}
+			continue
+		}
+
+		taskCount := len(job.(*model.Job).Tasks)
+		completedCount := 0
+
+		for taskId, task := range job.(*model.Job).Tasks {
+			if task.Stop != nil {
+				completedCount++
+			}
+
+			if taskId == vals["taskId"].(string) {
+				if err := model.TaskUpdateStopTime(task); err != nil {
+					log.Errorf("Unable to udpate task stop time - reason: %v", err)
+				}
+			}
+		}
+
+		if taskCount == completedCount {
+			jobCompleted(job.(*model.Job))
 		}
 	}
 }
 
-func processJob(job *model.Job) {
+func runJob(job *model.Job) {
 
 	if exists, err := model.JobExists(job.Id); err != nil {
 		log.Errorf("Unable to check if job exists: %v", err)
@@ -52,26 +89,24 @@ func processJob(job *model.Job) {
 		}
 	}
 
-	completedTaskChannel := make(chan *model.Task)
-	taskCount := len(job.Tasks)
+	jobs.Store(job.Id.Hex(), job)
 
 	for _, task := range job.Tasks {
-		go processTask(task, completedTaskChannel)
+		if err := dispatchTask(task); err != nil {
+			log.Errorf(
+				"Job task dispatch issue - job: %s - task: %s - reason: %s",
+				job.Id.Hex(),
+				task.Id.Hex(),
+				err,
+			)
+		}
 	}
-
-	waitForTasksToComplete(taskCount, completedTaskChannel)
-	jobCompleted(job)
 }
 
 func jobCompleted(job *model.Job) {
 	log.Infof("Job work completed - id: %s", job.Id.Hex())
 
-	if len(job.FailureReason) > 0 {
-		log.Errorf("Job had a failure - id: %s - reason: %s", job.Id.Hex(), job.FailureReason)
-		if err := model.JobUpdateFailureReason(job.Id, job.FailureReason); err != nil {
-			log.Errorf("Job failed to update db failure reason - id: %s - reason: %v", job.Id.Hex(), err)
-		}
-	}
+	jobs.Delete(job.Id.Hex())
 
 	if err := model.JobUpdateStopTime(job.Id); err != nil {
 		log.Errorf("Failed to update job stop time in db - id: %s - reason: %v", job.Id.Hex(), err)
