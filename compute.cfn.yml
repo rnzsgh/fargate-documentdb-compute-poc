@@ -804,22 +804,6 @@ Resources:
               Value: !Ref AWS::AccountId
             - Name: AWS_REGION
               Value: !Ref AWS::Region
-            - Name: TASK_EXECUTION_ROLE
-              Value: !Ref TaskExecutionRole
-            - Name: TASK_EXECUTION_ROLE_ARN
-              Value: !GetAtt TaskExecutionRole.Arn
-            - Name: TASK_DEFINITION_FAMILY_WORKER
-              Value: !Sub ${AWS::StackName}-worker
-            - Name: CONTAINER_NAME
-              Value: !Ref GitSourceRepoWorker
-            - Name: SUBNET_0
-              Value: !Ref PrivateSubnet0
-            - Name: SUBNET_1
-              Value: !Ref PrivateSubnet1
-            - Name: APP_SECURITY_GROUP_ID
-              Value: !Ref AppSecurityGroup
-            - Name: CLUSTER_NAME
-              Value: !Ref FargateEcsCluster
             - Name: STACK_NAME
               Value: !Ref AWS::StackName
           LogConfiguration:
