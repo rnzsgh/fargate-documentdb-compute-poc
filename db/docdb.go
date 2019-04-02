@@ -45,7 +45,8 @@ func init() {
 		"work",
 		"dispatchQueue",
 		connectionUri,
-		caFile, 5*time.Second,
+		caFile,
+		5*time.Second,
 	); err != nil {
 		log.Errorf("Unable to create work dispatch queue - endpoint: %s - reason: %v", endpoint, err)
 	}
