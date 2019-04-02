@@ -8,6 +8,7 @@ import (
 
 	log "github.com/golang/glog"
 	queue "github.com/rnzsgh/documentdb-queue"
+	"github.com/rnzsgh/fargate-documentdb-compute-poc/cloud"
 	docdb "github.com/rnzsgh/fargate-documentdb-compute-poc/db"
 	"github.com/rnzsgh/fargate-documentdb-compute-poc/model"
 )
@@ -22,11 +23,32 @@ func init() {
 
 	go newJobListener(JobSubmitChannel)
 
+	go updateQueueDepthMonitor()
+
 	if jobs, err := model.JobFindRunning(); err != nil {
 		log.Errorf("Unable to load running jobs on start: %v", err)
 	} else {
 		for _, job := range jobs {
 			runJob(job)
+		}
+	}
+}
+
+func updateQueueDepthMonitor() {
+
+	monitor := cloud.MonitorPutMetricDataBuffer(
+		"Application/compute",
+		"WorkerQueueDepth",
+		30*time.Second,
+	)
+
+	for {
+		time.Sleep(15 * time.Second)
+
+		if size, err := docdb.TaskDispatchQueue.Size(context.Background()); err != nil {
+			log.Errorf("Unable to to get task dispatch queue size - reason: %v", err)
+		} else {
+			monitor(float64(size))
 		}
 	}
 }
